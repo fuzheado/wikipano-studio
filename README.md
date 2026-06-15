@@ -120,7 +120,7 @@ panorama = "File:My_Photo.jpg"
 | Phase | Status | Description |
 |---|---|---|
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
-| 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
+| 2 — Studio | In progress | Visual editor with click-to-place hotspots |
 | 2.5 — Deploy | Next | Toolforge deployment, `{{PanoTour}}` template, OAuth save |
 | 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery |
 
