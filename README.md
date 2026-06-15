@@ -10,6 +10,8 @@ Pannellum has built-in [tour support](https://pannellum.org/documentation/exampl
 
 ## What We Built
 
+![Screenshot of the Visual Studio showing the Banned Books Museum 360° panorama with hotspot icons, scene list, and properties panel](screenshot.png)
+
 A full authoring pipeline for collaborative photosphere tours:
 
 ```
