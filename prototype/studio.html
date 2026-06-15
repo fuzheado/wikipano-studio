@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photosphere Tour Studio</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.css"/>
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.js"></script>
+<style>
+:root {
+    --bg: #1a1a2e; --surface: #16213e; --surface2: #0f3460;
+    --text: #e0e0e0; --muted: #888; --accent: #e94560;
+    --green: #5cb85c; --yellow: #f0ad4e; --blue: #5bc0de;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── Toolbar ─────────────────────────────── */
+#toolbar {
+    background: var(--surface); padding: 8px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
+}
+#toolbar h1 { font-size: 1rem; font-weight: 600; margin-right: auto; }
+#toolbar .badge { font-size: 0.7rem; background: var(--accent); padding: 2px 8px; border-radius: 10px; }
+#toolbar button {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2);
+    background: var(--surface2); color: var(--text);
+    border-radius: 5px; cursor: pointer; font-size: 0.82rem; white-space: nowrap;
+}
+#toolbar button:hover { border-color: var(--accent); }
+#toolbar button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+#toolbar button.green { background: #2d6a4f; border-color: #2d6a4f; }
+
+/* ── Main layout ─────────────────────────── */
+#main { flex:1; display:flex; min-height:0; }
+
+/* ── Left panel: Scene list ──────────────── */
+#left-panel {
+    width: 260px; background: var(--surface); flex-shrink: 0;
+    display: flex; flex-direction: column;
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
+#left-panel h2 {
+    padding: 12px 16px 8px; font-size: 0.8rem;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+}
+#scene-list { list-style: none; overflow-y: auto; flex: 1; }
+#scene-list li {
+    padding: 10px 16px; cursor: pointer; display: flex;
+    align-items: center; gap: 8px; font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s;
+}
+#scene-list li:hover { background: rgba(255,255,255,0.05); }
+#scene-list li.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+#scene-list li .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+#scene-list li .thumb {
+    width: 36px; height: 24px; border-radius: 3px; flex-shrink: 0;
+    background: var(--surface2); background-size: cover; background-position: center;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+#scene-list li .thumb:empty { display: none; }
+#scene-list li .thumb:empty + .name { margin-left: 0; }
+#scene-list li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#scene-list li .badge { font-size: 0.65rem; background: var(--blue); padding: 1px 6px; border-radius: 8px; color: #fff; }
+#scene-list li .delete-btn {
+    opacity: 0; background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 3px;
+}
+#scene-list li:hover .delete-btn { opacity: 1; }
+#scene-list li .delete-btn:hover { color: var(--accent); }
+#add-scene-btn { margin: 8px; }
+
+/* ── Center: Viewport ────────────────────── */
+#viewport-container {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    position: relative; background: #000;
+}
+#viewport { flex: 1; min-height: 0; }
+#coord-display {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.7); padding: 6px 14px; border-radius: 6px;
+    font-size: 0.78rem; font-family: monospace; color: var(--green);
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+}
+#coord-display.visible { opacity: 1; }
+#coord-display .label { color: var(--muted); }
+
+/* ── Right panel: Properties ────────────── */
+#right-panel {
+    width: 300px; background: var(--surface); flex-shrink: 0;
+    display: flex; flex-direction: column; overflow-y: auto;
+    border-left: 1px solid rgba(255,255,255,0.1);
+}
+#right-panel h2 {
+    padding: 12px 16px 8px; font-size: 0.8rem;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+}
+.panel-section {
+    padding: 8px 16px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.panel-section label {
+    display: block; font-size: 0.75rem; color: var(--muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.panel-section input, .panel-section select, .panel-section textarea {
+    width: 100%; padding: 6px 10px; background: var(--bg);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+    color: var(--text); font-size: 0.85rem;
+}
+.panel-section input:focus, .panel-section select:focus, .panel-section textarea:focus {
+    outline: none; border-color: var(--accent);
+}
+.panel-section textarea { resize: vertical; min-height: 40px; font-family: monospace; font-size: 0.8rem; }
+.panel-section .hint { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+.panel-section .row { display: flex; gap: 8px; }
+.panel-section .row > * { flex: 1; }
+
+.hotspot-card {
+    background: var(--surface2); border-radius: 6px; padding: 10px 12px;
+    margin-bottom: 8px; font-size: 0.8rem;
+}
+.hotspot-card .hs-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.hotspot-card .hs-type {
+    font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+    font-weight: 600; text-transform: uppercase;
+}
+.hotspot-card .hs-type.scene { background: var(--blue); color: #fff; }
+.hotspot-card .hs-type.info { background: var(--green); color: #fff; }
+.hotspot-card .hs-text { flex: 1; }
+.hotspot-card .hs-coords { font-size: 0.7rem; color: var(--muted); font-family: monospace; }
+.hotspot-card .hs-delete {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem;
+}
+.hotspot-card .hs-delete:hover { color: var(--accent); }
+.hotspot-card .hs-edit {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
+}
+.hotspot-card .hs-edit:hover { color: var(--blue); }
+.hotspot-card .hs-detail { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+/* ── Status bar ──────────────────────────── */
+#status-bar {
+    background: var(--surface); border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 6px 16px; font-size: 0.75rem; color: var(--muted);
+    display: flex; gap: 20px; flex-shrink: 0;
+}
+#status-bar .coord { font-family: monospace; color: var(--green); }
+
+/* ── Modal ───────────────────────────────── */
+.modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 1000; align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+    background: var(--surface); border-radius: 10px; padding: 24px;
+    width: 500px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.modal h2 { margin-bottom: 16px; font-size: 1.1rem; }
+.modal label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+.modal input, .modal select, .modal textarea {
+    width: 100%; padding: 8px 12px; background: var(--bg);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 5px;
+    color: var(--text); font-size: 0.85rem; margin-bottom: 12px;
+}
+.modal textarea { font-family: monospace; font-size: 0.8rem; min-height: 120px; }
+.modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.modal button {
+    padding: 8px 18px; border: 1px solid rgba(255,255,255,0.2);
+    background: var(--surface2); color: var(--text);
+    border-radius: 5px; cursor: pointer;
+}
+.modal button.primary { background: var(--accent); border-color: var(--accent); }
+
+/* ── Studio hotspot icons in viewport ────── */
+.studio-hotspot {
+    transform-origin: center center !important;
+    animation: hs-pulse 2s ease-in-out infinite;
+}
+@keyframes hs-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+/* Scene link: arrow/navigation style */
+.studio-scene-hs {
+    height: 50px !important;
+    width: 50px !important;
+    background: #e94560 !important;
+    border-radius: 50% !important;
+    border: 3px solid #fff !important;
+    box-shadow: 0 0 18px rgba(233, 69, 96, 0.8), 0 0 40px rgba(233, 69, 96, 0.3) !important;
+}
+.studio-scene-hs::after {
+    content: '➤';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    line-height: 1;
+    z-index: 999;
+}
+/* Info hotspot: circle dot style */
+.studio-info-hs {
+    height: 40px !important;
+    width: 40px !important;
+    background: #5bc0de !important;
+    border-radius: 50% !important;
+    border: 3px solid #fff !important;
+    box-shadow: 0 0 18px rgba(91, 192, 222, 0.8), 0 0 40px rgba(91, 192, 222, 0.3) !important;
+}
+.studio-info-hs::after {
+    content: 'ⓘ';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+    line-height: 1;
+    z-index: 999;
+}
+/* Override Pannellum sprite backgrounds */
+.studio-scene-hs.pnlm-sprite,
+.studio-info-hs.pnlm-sprite {
+    background-image: none !important;
+}
+#add-hotspot-btn {
+    position: absolute; bottom: 12px; right: 12px;
+    padding: 10px 18px; background: var(--accent); color: #fff;
+    border: none; border-radius: 6px; cursor: pointer;
+    font-weight: 600; font-size: 0.85rem; z-index: 10;
+    display: none; /* shown when coords captured */
+}
+#add-hotspot-btn:hover { filter: brightness(1.2); }
+#add-hotspot-btn .coord-preview { font-family: monospace; font-size: 0.7rem; opacity: 0.8; }
+
+/* ── Image source input ─────────────────── */
+#img-source-bar {
+    padding: 8px 16px; background: var(--surface2);
+    display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+}
+#img-source-bar input {
+    flex: 1; padding: 6px 10px; background: var(--bg);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+    color: var(--text); font-size: 0.85rem;
+}
+#img-source-bar button {
+    padding: 6px 12px; background: var(--accent); color: #fff;
+    border: none; border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+}
+
+/* ── Responsive ──────────────────────────── */
+@media (max-width: 900px) {
+    #main { flex-direction: column; }
+    #left-panel { width: 100%; max-height: 150px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    #right-panel { width: 100%; max-height: 200px; border-left: none; border-top: 1px solid rgba(255,255,255,0.1); }
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+    <h1>🎬 Photosphere Tour Studio</h1>
+    <span class="badge">Phase 2</span>
+    <button id="btn-import" title="Import tour JSON">📥 Import</button>
+    <button id="btn-export" class="primary" title="Export tour as JSON">📤 Export</button>
+    <button id="btn-preview" class="green" title="Preview tour in viewer">▶ Preview</button>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+    <!-- Left: Scene list -->
+    <div id="left-panel">
+        <h2>📍 Scenes</h2>
+        <ul id="scene-list"></ul>
+        <button id="add-scene-btn" class="primary" style="margin:8px 16px 12px;">+ Add Scene</button>
+    </div>
+
+    <!-- Center: Viewport -->
+    <div id="viewport-container">
+        <div id="viewport">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:1.1rem;">
+                🏞️ Add a scene to get started
+            </div>
+        </div>
+        <div id="coord-display">
+            <span class="label">Click to capture:</span>
+            Yaw: <span id="coord-yaw">—</span>°
+            Pitch: <span id="coord-pitch">—</span>°
+        </div>
+        <button id="add-hotspot-btn">
+            ＋ Place Hotspot Here
+            <div class="coord-preview" id="hs-coord-preview"></div>
+        </button>
+    </div>
+
+    <!-- Right: Properties -->
+    <div id="right-panel">
+        <div class="panel-section" id="scene-props">
+            <h2>📋 Scene Properties</h2>
+            <label>Title</label>
+            <input type="text" id="prop-title" placeholder="Scene title">
+            <div class="row" style="margin-top:8px;">
+                <div>
+                    <label>HFOV</label>
+                    <input type="number" id="prop-hfov" value="110" min="30" max="150">
+                </div>
+                <div>
+                    <label>Yaw</label>
+                    <input type="number" id="prop-yaw" value="0" step="0.1">
+                </div>
+                <div>
+                    <label>Pitch</label>
+                    <input type="number" id="prop-pitch" value="0" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h2 style="display:flex;align-items:center;justify-content:space-between;">
+                🔗 Hotspots
+                <button id="btn-cycle-hotspots" onclick="cycleHotspots()"
+                    style="font-size:0.7rem;padding:3px 8px;background:var(--surface2);color:var(--text);border:1px solid rgba(255,255,255,0.2);border-radius:4px;cursor:pointer;"
+                    title="Cycle viewport to face each hotspot">
+                    👁 Show All
+                </button>
+            </h2>
+            <div id="hotspot-list">
+                <div style="color:var(--muted);font-size:0.8rem;">No hotspots yet.<br>Click in the viewport to capture coordinates.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status bar -->
+<div id="status-bar">
+    <span id="status-msg">Ready</span>
+    <span class="coord" id="status-coords"></span>
+</div>
+
+<!-- Add Scene Modal -->
+<div class="modal-overlay" id="modal-add-scene">
+    <div class="modal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <h2>Add Scene</h2>
+            <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
+        </div>
+        <label>Image Source</label>
+        <input type="text" id="modal-img-url" placeholder="Commons file name (File:Example.jpg) or full URL">
+        <div class="hint">Enter a Commons filename like <code>File:My_Photo.jpg</code> or a full image URL</div>
+        <label style="margin-top:12px;">Scene Title (optional)</label>
+        <input type="text" id="modal-title" placeholder="My Scene">
+        <div class="actions">
+            <button id="modal-cancel-add">Cancel</button>
+            <button id="modal-confirm-add" class="primary">Add Scene</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Hotspot Modal -->
+<div class="modal-overlay" id="modal-add-hs">
+    <div class="modal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <h2>Add Hotspot</h2>
+            <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
+        </div>
+        <div style="font-family:monospace;color:var(--green);margin-bottom:12px;font-size:0.85rem;">
+            Pitch: <span id="modal-hs-pitch"></span>° &nbsp; Yaw: <span id="modal-hs-yaw"></span>°
+        </div>
+        <label>Type</label>
+        <select id="modal-hs-type">
+            <option value="scene">Scene Link (navigate to another scene)</option>
+            <option value="info">Info (tooltip + optional URL)</option>
+        </select>
+        <label style="margin-top:12px;">Hover Text</label>
+        <input type="text" id="modal-hs-text" placeholder="Text shown on hover">
+        <div id="modal-hs-scene-group">
+            <label style="margin-top:12px;">Target Scene</label>
+            <select id="modal-hs-scene"></select>
+        </div>
+        <div id="modal-hs-url-group" style="display:none;">
+            <label style="margin-top:12px;">Link URL (optional)</label>
+            <input type="text" id="modal-hs-url" placeholder="https://en.wikipedia.org/wiki/...">
+        </div>
+        <div class="actions">
+            <button id="modal-cancel-hs">Cancel</button>
+            <button id="modal-confirm-hs" class="primary">Add Hotspot</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="modal-import">
+    <div class="modal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <h2>Import Tour</h2>
+            <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
+        </div>
+        <label>Paste tour JSON or enter wiki page title</label>
+        <textarea id="modal-import-text" placeholder="{ &quot;default&quot;: { &quot;firstScene&quot;: ... }, &quot;scenes&quot;: { ... } }"></textarea>
+        <div class="hint">You can also enter a wiki page title like <code>User:Fuzheado/Panellum_Tour</code></div>
+        <div class="actions">
+            <button id="modal-cancel-import">Cancel</button>
+            <button id="modal-confirm-import" class="primary">Import</button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="modal-export">
+    <div class="modal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <h2>Export Tour</h2>
+            <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
+        </div>
+        <label>Tour JSON</label>
+        <textarea id="modal-export-text" readonly></textarea>
+        <div class="hint" style="margin-bottom:12px;">Copy this JSON to a wiki page on Commons to share your tour.</div>
+        <div class="actions" style="flex-wrap:wrap;">
+            <button id="modal-copy-json">📋 Copy to Clipboard</button>
+            <button id="modal-download-json" class="primary">💾 Download JSON</button>
+        </div>
+    </div>
+</div>
+
+<script src="studio.js"></script>
+</body>
+</html>

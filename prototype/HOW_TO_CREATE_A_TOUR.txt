@@ -1,0 +1,124 @@
+# How to Create a Photosphere Tour on Wikimedia Commons
+# ====================================================
+#
+# 1. Take 360° photos (equirectangular, 2:1 aspect ratio)
+# 2. Upload them to Wikimedia Commons
+# 3. Create a wiki page at User:YourName/YourTourName
+# 4. Paste a tour definition in one of these formats:
+#
+#    FORMAT A: TOML (easiest to edit by hand on wiki)
+#    FORMAT B: JSON (best for programmatic generation)
+#
+# 5. View your tour at:
+#    https://panoviewer.toolforge.org/#tour=User:YourName/YourTourName
+#
+# Tips:
+#   - Use Pannellum's hotSpotDebug mode to find coordinates
+#   - scene hotspots link photos together
+#   - info hotspots show tooltips and can link to URLs
+
+# ==========================================
+# FORMAT A: TOML (paste this on your wiki page inside <nowiki> tags)
+# ==========================================
+#
+# <nowiki>
+# autoLoad = true
+#
+# [default]
+# firstScene = "my_scene_id"
+# author = "Your Name"
+# sceneFadeDuration = 1000
+#
+# [scenes.my_scene_id]
+# title = "My First Scene"
+# hfov = 110
+# pitch = 0
+# yaw = 0
+# type = "equirectangular"
+# panorama = "File:Your_Photo.jpg"
+#
+#   [[scenes.my_scene_id.hotSpots]]
+#   pitch = 10
+#   yaw = 45
+#   type = "scene"
+#   text = "Go to next scene"
+#   sceneId = "scene_two"
+#
+#   [[scenes.my_scene_id.hotSpots]]
+#   pitch = -15
+#   yaw = -30
+#   type = "info"
+#   text = "Learn more on Wikipedia"
+#   URL = "https://en.wikipedia.org/wiki/Example"
+#
+# [scenes.scene_two]
+# title = "My Second Scene"
+# type = "equirectangular"
+# panorama = "File:Another_Photo.jpg"
+# </nowiki>
+
+
+# ==========================================
+# FORMAT B: JSON (paste raw or in <syntaxhighlight lang="json">)
+# ==========================================
+
+{
+    "default": {
+        "firstScene": "my_scene_id",
+        "author": "Your Name",
+        "sceneFadeDuration": 1000
+    },
+    "scenes": {
+        "my_scene_id": {
+            "title": "My First Scene",
+            "hfov": 110,
+            "pitch": 0,
+            "yaw": 0,
+            "type": "equirectangular",
+            "panorama": "File:Your_Photo.jpg",
+            "hotSpots": [
+                {
+                    "pitch": 10,
+                    "yaw": 45,
+                    "type": "scene",
+                    "text": "Go to next scene",
+                    "sceneId": "scene_two"
+                },
+                {
+                    "pitch": -15,
+                    "yaw": -30,
+                    "type": "info",
+                    "text": "Learn more on Wikipedia",
+                    "URL": "https://en.wikipedia.org/wiki/Example"
+                }
+            ]
+        },
+        "scene_two": {
+            "title": "My Second Scene",
+            "type": "equirectangular",
+            "panorama": "File:Another_Photo.jpg"
+        }
+    }
+}
+
+
+# ==========================================
+# Finding Hotspot Coordinates
+# ==========================================
+#
+# The hardest part is finding the right pitch/yaw for each hotspot.
+# Here are your options:
+#
+# OPTION 1: hotSpotDebug (quick & dirty)
+#   Add this to your viewer config temporarily:
+#   "hotSpotDebug": true
+#   Then click anywhere in the panorama and check the browser console
+#   for the logged pitch/yaw values.
+#
+# OPTION 2: Use the Phase 2 Visual Editor (coming soon!)
+#   A point-and-click interface that lets you place hotspots visually.
+#
+# OPTION 3: Estimate
+#   - yaw:    0° = center, 90° = right, -90° = left, 180°/-180° = behind
+#   - pitch:  0° = horizon, 90° = up, -90° = down
+#   These are sphere coordinates on the equirectangular projection.

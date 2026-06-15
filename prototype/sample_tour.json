@@ -1,0 +1,54 @@
+{
+    "default": {
+        "firstScene": "museum",
+        "author": "Your Name Here",
+        "sceneFadeDuration": 1000
+    },
+    "scenes": {
+        "museum": {
+            "title": "Museum Interior",
+            "hfov": 120,
+            "pitch": -5,
+            "yaw": -177,
+            "type": "equirectangular",
+            "panorama": "File:Wikimedia_Hackathon_2024_-_Banned_Books_Museum_06.jpg",
+            "hotSpots": [
+                {
+                    "pitch": -17.35,
+                    "yaw": 33.77,
+                    "type": "scene",
+                    "text": "Go outside to the road",
+                    "sceneId": "road",
+                    "targetYaw": 250,
+                    "targetPitch": -15
+                },
+                {
+                    "pitch": -15,
+                    "yaw": -100,
+                    "type": "info",
+                    "text": "Exhibit: The Satanic Verses by Salman Rushdie",
+                    "URL": "https://en.wikipedia.org/wiki/The_Satanic_Verses"
+                }
+            ]
+        },
+        "road": {
+            "title": "Road Outside",
+            "hfov": 110,
+            "pitch": -4,
+            "yaw": -85,
+            "type": "equirectangular",
+            "panorama": "File:Tallinn,_Estonia_–_Vanalinn,_Vene_–_2024-05-03_02.jpg",
+            "hotSpots": [
+                {
+                    "pitch": -15,
+                    "yaw": 250,
+                    "type": "scene",
+                    "text": "Enter the Museum",
+                    "sceneId": "museum",
+                    "targetYaw": -177,
+                    "targetPitch": -5
+                }
+            ]
+        }
+    }
+}

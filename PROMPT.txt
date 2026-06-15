@@ -1,0 +1,41 @@
+I want you to investigate how we might create a new facility for Wikipedia and Wikimedia Commons of making 360 photosphere tours. These are photos that might be taken on a 360 camera like an Insta360 X5 or similar camera and are stored as warped JPG files on Wikimedia Commons. 
+
+There is currently a way to view these photospheres which are imperfectly categorized here on Commons as 2:1 ratio equirectangular projection JPG files:
+https://commons.wikimedia.org/wiki/Category:360%C2%B0_panoramas
+
+A caveat that a lot of files in this category are not actually usable as equirectangular projection files, but are rather snapshots of the 360 projection, such as those in "Tiny World" mode. But most large 2:1 images found here with the category are likely usable in that way.
+
+For many of these files, the Commons page has the template {{pano360}} which allows you to click on a link and open it up in a 360 viewer, which is Panellum, a Javascript based tool which can be found on toolforge:
+
+https://panoviewer.toolforge.org/
+
+Details about Panellum can be found here, which is open source:
+
+https://pannellum.org/
+https://github.com/mpetroff/pannellum
+
+In the docs, there is a documented "tour" mode to allow defining hotspots and linking photo to photo which would allow for making a walkthrough "tour" mode:
+https://pannellum.org/documentation/examples/tour/
+
+This potentially gives you advanced capabilities of more full-featured commercial tools like Kuula or Matterport:
+https://kuula.co/
+https://matterport.com/
+
+I tried this out quickly and was able to make an image-to-image clicking tour as an example, the JSOB specification which can be found here:
+https://commons.wikimedia.org/wiki/User:Fuzheado/Panellum_Tour
+
+
+Now, the challenge and research I want you to do is several-fold:
+1. Tour definition, collaboration, and operation - In theory, it should be possible for Wikimedians to collaborate on making a tour using this type of JSON specification collaboratively edted on wiki, and then at runtime, the Panellum system could take this in and create a tour experience. This would be quite novel in that no one owns the tour, and you have the benefit of many eyes/hands to create compelling experiences
+2. Features - What are the full set of features we can expect from Panellum to make full featured tours? They document hotspots and other features:
+https://pannellum.org/documentation/examples/custom-hot-spots/
+3. Creation interface - There seems to be no nice GUI or user friendly way to author tours, such as having a "studio" mode where you can actually bring up 360 photos, pan around, place hotspots and see what they would look like to the user, and have a point/click interface to produce the JSON file needed for Panellum. It would nice to be "round trip" in that any tool should be able to read in, quality check, and re-edit the JSON.
+
+While Panellum is what was used and seems to have decent features, it's not clear it is being actively developed or if other projects have emerged to do this. Be aware I am only looking for open source software compatible with Wikimedia guidelines so that it can be put on Wikimedia servers.
+
+There does seem to be another package worth looking at:
+https://github.com/mistic100/Photo-Sphere-Viewer
+
+But I also want you to do a search for other possible packages.
+
+Do some quick research on these areas and come back with your findings and proposals on possible ways to prototype a system that might get us to the eventual goal of a full-featured, user-friendly way to author tours for 360 panorama photos stictched together in the same quality/capability of tools like Kuula or Matterport.

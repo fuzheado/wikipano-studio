@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikimedia Photosphere Tour Viewer — Phase 1 Prototype</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.js"></script>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --text: #e0e0e0;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --muted: #888;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ─────────────────────────────────── */
+        header {
+            background: var(--surface);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+        header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        header .subtitle {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        /* ── URL bar ────────────────────────────────── */
+        .url-bar {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+        .url-bar input {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            min-width: 0;
+        }
+        .url-bar input:focus {
+            outline: none;
+            border-color: var(--highlight);
+        }
+        .url-bar button {
+            padding: 8px 16px;
+            background: var(--highlight);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .url-bar button:hover {
+            filter: brightness(1.1);
+        }
+
+        /* ── Main layout ────────────────────────────── */
+        main {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+
+        /* ── Viewer ─────────────────────────────────── */
+        #panorama {
+            flex: 1;
+            min-width: 0;
+            background: #000;
+        }
+        #panorama .pnlm-container {
+            /* Pannellum creates its own container */
+        }
+
+        /* ── Sidebar ────────────────────────────────── */
+        aside {
+            width: 320px;
+            background: var(--surface);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        aside h2 {
+            padding: 16px 20px 8px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+        }
+
+        /* Scene list */
+        .scene-list {
+            list-style: none;
+        }
+        .scene-list li {
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            transition: background 0.15s;
+        }
+        .scene-list li:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .scene-list li.active {
+            background: var(--accent);
+            font-weight: 600;
+        }
+        .scene-list li .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--highlight);
+            flex-shrink: 0;
+        }
+
+        /* Tour info */
+        .tour-info {
+            padding: 16px 20px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .tour-info .label {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* Status bar */
+        .status {
+            padding: 10px 20px;
+            font-size: 0.8rem;
+            background: var(--bg);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        .status.error { color: var(--highlight); }
+        .status.loading { color: #f0ad4e; }
+        .status.ok { color: #5cb85c; }
+
+        /* Wikipedia card tooltips */
+        .wp-card-tooltip {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            width: 260px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            overflow: hidden;
+            pointer-events: auto;
+            font-size: 0.82rem;
+            line-height: 1.4;
+            z-index: 100;
+        }
+        .wp-card-tooltip img {
+            width: 100%;
+            max-height: 140px;
+            object-fit: cover;
+        }
+        .wp-card-body {
+            padding: 12px 14px;
+        }
+        .wp-card-body h3 {
+            margin: 0 0 6px 0;
+            font-size: 0.95rem;
+            color: #fff;
+        }
+        .wp-card-body p {
+            margin: 0 0 10px 0;
+            color: #aaa;
+            font-size: 0.78rem;
+        }
+        .wp-card-link {
+            color: #5bc0de;
+            text-decoration: none;
+            font-size: 0.78rem;
+        }
+        .wp-card-link:hover { text-decoration: underline; }
+        .wp-card-loading {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+            font-size: 0.8rem;
+        }
+        .wp-card-hotspot .pnlm-tooltip {
+            display: none !important;
+        }
+
+        /* ── Footer ─────────────────────────────────── */
+        footer {
+            background: var(--surface);
+            padding: 8px 20px;
+            font-size: 0.75rem;
+            color: var(--muted);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── Responsive ─────────────────────────────── */
+        @media (max-width: 768px) {
+            main { flex-direction: column; }
+            aside { width: 100%; max-height: 200px; border-left: none; border-top: 1px solid rgba(255,255,255,0.1); }
+            header { flex-wrap: wrap; }
+            .url-bar { flex-basis: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>🔭 Wikimedia Photosphere Tour</h1>
+        <div class="subtitle">Phase 1 Prototype</div>
+    </div>
+    <div class="url-bar">
+        <input type="text" id="tourInput"
+               placeholder="Wiki page title, e.g. User:Fuzheado/Panellum_Tour"
+               value="User:Fuzheado/Panellum_Tour">
+        <button id="loadBtn">Load Tour</button>
+    </div>
+</header>
+
+<main>
+    <div id="panorama">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">
+            Enter a tour page title and click "Load Tour"
+        </div>
+    </div>
+    <aside>
+        <h2>📍 Scenes</h2>
+        <ul class="scene-list" id="sceneList">
+            <li style="color:var(--muted);">No tour loaded</li>
+        </ul>
+        <div class="tour-info" id="tourInfo" style="display:none;"></div>
+        <div class="status" id="status">Ready</div>
+    </aside>
+</main>
+
+<footer>
+    <span>Powered by <a href="https://pannellum.org/" target="_blank" style="color:var(--highlight);">Pannellum</a></span>
+    <span>Tour JSON stored on <a href="https://commons.wikimedia.org/" target="_blank" style="color:var(--highlight);">Wikimedia Commons</a></span>
+</footer>
+
+<script>
+// ── Configuration ───────────────────────────────────────────────────────────
+
+// URL of the tour API backend
+// In production, this would be https://panoviewer.toolforge.org/api/tour
+const CONFIG_BACKEND = '/api/tour?page=';
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+let viewer = null;
+let tourData = null;
+let currentScene = null;
+
+// ── Scene List ──────────────────────────────────────────────────────────────
+
+function renderSceneList() {
+    const list = document.getElementById('sceneList');
+    if (!tourData || !tourData.scenes) {
+        list.innerHTML = '<li style="color:var(--muted);">No scenes</li>';
+        return;
+    }
+
+    list.innerHTML = Object.entries(tourData.scenes).map(([id, scene]) => {
+        const active = id === currentScene ? ' class="active"' : '';
+        return `<li${active} onclick="switchToScene('${escapeHTML(id)}')">
+            <span class="dot"></span>
+            ${escapeHTML(scene.title || id)}
+        </li>`;
+    }).join('');
+}
+
+function renderTourInfo() {
+    const info = document.getElementById('tourInfo');
+    if (!tourData) {
+        info.style.display = 'none';
+        return;
+    }
+    info.style.display = 'block';
+    const meta = tourData._meta || {};
+    const author = (tourData.default && tourData.default.author) || 'Unknown';
+    info.innerHTML = `
+        <p><span class="label">Author:</span> ${escapeHTML(author)}</p>
+        <p><span class="label">Scenes:</span> ${meta.totalScenes || Object.keys(tourData.scenes || {}).length}</p>
+        <p><span class="label">Source:</span> <a href="https://commons.wikimedia.org/wiki/${encodeURIComponent(meta.source || '')}" target="_blank" style="color:var(--highlight);">View on Commons</a></p>
+    `;
+}
+
+function setStatus(message, type) {
+    const el = document.getElementById('status');
+    el.textContent = message;
+    el.className = 'status ' + (type || '');
+}
+
+// ── Viewer ──────────────────────────────────────────────────────────────────
+
+function loadTour(configUrl) {
+    setStatus('Loading tour...', 'loading');
+    document.getElementById('tourInfo').style.display = 'none';
+
+    // Destroy existing viewer if any
+    if (viewer) {
+        try { viewer.destroy(); } catch(e) {}
+        viewer = null;
+    }
+
+    // Clear the panorama container
+    document.getElementById('panorama').innerHTML = '';
+
+    // Fetch tour config first, THEN initialize Pannellum once
+    fetch(configUrl)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.error || 'HTTP ' + response.status);
+                });
+            }
+            return response.json();
+        })
+        .then(config => {
+            tourData = config;
+
+            if (config.error) {
+                throw new Error(config.error);
+            }
+
+            // Add Wikipedia card tooltips to hotspots
+            if (config.scenes) enrichHotspots(config.scenes);
+
+            // Ensure autoLoad is set in default for tour mode
+            if (config.default && config.default.autoLoad === undefined) {
+                config.default.autoLoad = true;
+            }
+
+            const firstScene = config.default.firstScene;
+            currentScene = firstScene;
+
+            // Single initialization with full config
+            viewer = pannellum.viewer('panorama', config);
+
+            viewer.on('scenechange', function(sceneId) {
+                currentScene = sceneId;
+                renderSceneList();
+            });
+
+            viewer.on('load', function() {
+                setStatus('Tour loaded successfully \u2713', 'ok');
+            });
+
+            viewer.on('error', function(err) {
+                console.error('Pannellum error:', err);
+                setStatus('Viewer error: ' + err, 'error');
+            });
+
+            renderSceneList();
+            renderTourInfo();
+        })
+        .catch(err => {
+            console.error('Tour load error:', err);
+            setStatus('Error: ' + err.message, 'error');
+            tourData = null;
+            renderSceneList();
+            renderTourInfo();
+        });
+}
+
+function switchToScene(sceneId) {
+    if (!viewer || !tourData) return;
+    try {
+        viewer.loadScene(sceneId);
+        currentScene = sceneId;
+        renderSceneList();
+    } catch(e) {
+        console.error('Scene switch error:', e);
+    }
+}
+
+// ── Wikipedia Rich Info Cards ────────────────────────────────────────────────
+
+const WP_API = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
+
+function wikipediaCardTooltip(hotSpotDiv, args) {
+    hotSpotDiv.classList.add('wp-card-hotspot');
+    var card = document.createElement('div');
+    card.className = 'wp-card-tooltip';
+    card.innerHTML = '<div class="wp-card-loading">Loading...</div>';
+    hotSpotDiv.appendChild(card);
+
+    // Fetch article summary from Wikipedia API
+    var title = args.title;
+    fetch(WP_API + encodeURIComponent(title))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var img = data.thumbnail ?
+                '<img src="' + data.thumbnail.source + '" style="width:' + (data.thumbnail.width || 200) + 'px;max-width:200px;border-radius:6px 6px 0 0;" />' : '';
+            var extract = data.extract || '';
+            if (extract.length > 300) extract = extract.substring(0, 300) + '...';
+            card.innerHTML = img +
+                '<div class="wp-card-body">' +
+                '<h3>' + escapeHTML(data.title || title) + '</h3>' +
+                '<p>' + escapeHTML(extract) + '</p>' +
+                '<a href="' + (data.content_urls?.desktop?.page || args.url) + '" target="_blank" class="wp-card-link">Read on Wikipedia →</a>' +
+                '</div>';
+        })
+        .catch(function() {
+            // Fallback: show just title + link
+            card.innerHTML = '<div class="wp-card-body">' +
+                '<h3>' + escapeHTML(title.replace(/_/g, ' ')) + '</h3>' +
+                '<a href="' + args.url + '" target="_blank" class="wp-card-link">View on Wikipedia →</a>' +
+                '</div>';
+        });
+}
+
+function enrichHotspots(scenes) {
+    // Add Wikipedia card tooltips to hotspots with Wikipedia URLs
+    for (var sceneId in scenes) {
+        var scene = scenes[sceneId];
+        if (!scene.hotSpots) continue;
+        for (var i = 0; i < scene.hotSpots.length; i++) {
+            var hs = scene.hotSpots[i];
+            if (hs.URL && isWikipediaUrl(hs.URL)) {
+                var title = extractWikipediaTitle(hs.URL);
+                if (title) {
+                    hs.createTooltipFunc = wikipediaCardTooltip;
+                    hs.createTooltipArgs = { title: title, url: hs.URL };
+                }
+            }
+        }
+    }
+    return scenes;
+}
+
+function isWikipediaUrl(url) {
+    return /\.wikipedia\.org\/wiki\//i.test(url) ||
+           /qrwp\.org\//i.test(url) ||
+           /en\.wikipedia\.org/i.test(url);
+}
+
+function extractWikipediaTitle(url) {
+    // Match /wiki/Page_Title or /Page_Title from qrwp.org
+    var m = url.match(/\/wiki\/([^?#]+)/i);
+    if (m) return decodeURIComponent(m[1]);
+    // Match qrwp.org/Page_Title format
+    m = url.match(/qrwp\.org\/([^?#]+)/i);
+    if (m) return decodeURIComponent(m[1]);
+    return null;
+}
+
+function loadPreviewConfig(config) {
+    // Clear the placeholder text from the panorama container
+    document.getElementById('panorama').innerHTML = '';
+
+    // Add Wikipedia card tooltips to hotspots
+    if (config.scenes) enrichHotspots(config.scenes);
+
+    tourData = config;
+    if (config.default && config.default.autoLoad === undefined) {
+        config.default.autoLoad = true;
+    }
+    const firstScene = config.default.firstScene;
+    currentScene = firstScene;
+    viewer = pannellum.viewer('panorama', config);
+    viewer.on('scenechange', function(sceneId) {
+        currentScene = sceneId;
+        renderSceneList();
+    });
+    viewer.on('load', function() {
+        setStatus('Preview loaded \u2713', 'ok');
+    });
+    viewer.on('error', function(err) {
+        console.error('Pannellum error:', err);
+        setStatus('Viewer error: ' + err, 'error');
+    });
+    renderSceneList();
+    renderTourInfo();
+    document.getElementById('tourInput').value = '[Studio Preview]';
+    const info = document.getElementById('tourInfo');
+    info.style.display = 'block';
+    info.innerHTML = '<p><span class="label">Source:</span> Studio Preview</p>' +
+        '<p><span class="label">Scenes:</span> ' + Object.keys(config.scenes || {}).length + '</p>';
+}
+
+// ── UI Handlers ─────────────────────────────────────────────────────────────
+
+function handleLoad() {
+    const input = document.getElementById('tourInput');
+    const tourPage = input.value.trim();
+    if (!tourPage) {
+        setStatus('Please enter a wiki page title', 'error');
+        return;
+    }
+
+    const configUrl = CONFIG_BACKEND + encodeURIComponent(tourPage);
+    loadTour(configUrl);
+}
+
+function handleKeyPress(e) {
+    if (e.key === 'Enter') {
+        handleLoad();
+    }
+}
+
+// ── Utility ─────────────────────────────────────────────────────────────────
+
+function escapeHTML(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('loadBtn').addEventListener('click', handleLoad);
+    document.getElementById('tourInput').addEventListener('keypress', handleKeyPress);
+
+    // Auto-load from URL hash
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+        // localStorage preview (from studio — persistent, cross-tab)
+        if (hash === 'preview=local' || hash === 'preview=session') {
+            try {
+                const stored = localStorage.getItem('photosphere-preview-tour') || sessionStorage.getItem('photosphere-preview-tour');
+                if (!stored) throw new Error('No preview data found. Go back to the studio and click Preview again.');
+                const config = JSON.parse(stored);
+                loadPreviewConfig(config);
+            } catch(e) {
+                console.error('Preview error:', e);
+                setStatus('Preview error: ' + e.message, 'error');
+            }
+            return;
+        }
+        // Server-side preview: short key
+        if (hash.startsWith('preview=')) {
+            const key = hash.slice(8);
+            setStatus('Loading preview...', 'loading');
+            fetch(`/api/preview/${key}`)
+                .then(r => {
+                    if (!r.ok) throw new Error('Preview not found');
+                    return r.json();
+                })
+                .then(config => {
+                    tourData = config;
+                    if (config.default && config.default.autoLoad === undefined) {
+                        config.default.autoLoad = true;
+                    }
+                    currentScene = config.default.firstScene;
+                    viewer = pannellum.viewer('panorama', config);
+                    viewer.on('scenechange', function(sceneId) {
+                        currentScene = sceneId;
+                        renderSceneList();
+                    });
+                    viewer.on('load', function() {
+                        setStatus('Preview loaded \u2713', 'ok');
+                    });
+                    viewer.on('error', function(err) {
+                        setStatus('Viewer error: ' + err, 'error');
+                    });
+                    renderSceneList();
+                    renderTourInfo();
+                    document.getElementById('tourInput').value = '[Studio Preview]';
+                    const info = document.getElementById('tourInfo');
+                    info.style.display = 'block';
+                    info.innerHTML = '<p><span class="label">Source:</span> Studio Preview</p>' +
+                        '<p><span class="label">Scenes:</span> ' + Object.keys(config.scenes || {}).length + '</p>';
+                })
+                .catch(e => {
+                    setStatus('Error: ' + e.message, 'error');
+                });
+            return;
+        }
+        // Studio preview: inline JSON data (legacy)
+        if (hash.startsWith('data=')) {
+            try {
+                const json = decodeURIComponent(hash.slice(5));
+                const config = JSON.parse(json);
+                loadPreviewConfig(config);
+                return;
+            } catch(e) {
+                console.error('Failed to parse inline tour data:', e);
+                setStatus('Error: Invalid preview data', 'error');
+            }
+        }
+        // Standard wiki page title
+        document.getElementById('tourInput').value = hash;
+        handleLoad();
+    } else {
+        // Auto-load the example tour on page load
+        handleLoad();
+    }
+});
+</script>
+
+</body>
+</html>
