@@ -224,6 +224,20 @@
             display: none !important;
         }
 
+        /* Wikipedia cards hidden by default — shown on click */
+        .wp-card-tooltip { display: none; }
+        .wp-card-tooltip.visible { display: block; }
+
+        /* Close button for info popups */
+        .info-popup-close {
+            position: absolute; top: 6px; right: 8px;
+            background: rgba(0,0,0,0.5); border: none; color: #fff;
+            font-size: 16px; cursor: pointer; width: 24px; height: 24px;
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; z-index: 101; line-height: 1;
+        }
+        .info-popup-close:hover { background: rgba(233,69,96,0.8); }
+
         /* Audio hotspot: styled like the studio's green 🎵 icon */
         .audio-hotspot {
             height: 44px !important;
@@ -349,10 +363,11 @@
 
 <footer>
     <span>Powered by <a href="https://pannellum.org/" target="_blank" style="color:var(--highlight);">Pannellum</a></span>
+    <button id="toggleAllInfoBtn" style="background:var(--surface2);border:1px solid rgba(255,255,255,0.2);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.75rem;">👁 Show all popups</button>
     <span>Tour JSON stored on <a href="https://commons.wikimedia.org/" target="_blank" style="color:var(--highlight);">Wikimedia Commons</a></span>
 </footer>
 
-<!-- Video overlay popup (must be before <script> — JS references these IDs at parse time) -->
+<!-- Video overlay popup (placed before the JS script tag so getElementById works at parse time) -->
 <div id="video-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;">
     <div id="video-overlay-content" style="position:relative;max-width:90vw;max-height:85vh;width:800px;">
         <button id="video-overlay-close" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10001;">×</button>
@@ -465,11 +480,14 @@ function loadTour(configUrl) {
                 renderSceneList();
                 interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
             });
 
             viewer.on('load', function() {
                 interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
+                openHotspotsFromURL();
                 setStatus('Tour loaded successfully \u2713', 'ok');
             });
 
@@ -743,8 +761,9 @@ function wikipediaCardTooltip(hotSpotDiv, args) {
     hotSpotDiv.classList.add('wp-card-hotspot');
     var card = document.createElement('div');
     card.className = 'wp-card-tooltip';
-    card.innerHTML = '<div class="wp-card-loading">Loading...</div>';
+    card.innerHTML = '<button class="info-popup-close" title="Close">×</button><div class="wp-card-loading">Loading...</div>';
     hotSpotDiv.appendChild(card);
+    card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
 
     // Fetch article summary from Wikipedia API
     var title = args.title;
@@ -755,49 +774,135 @@ function wikipediaCardTooltip(hotSpotDiv, args) {
                 '<img src="' + data.thumbnail.source + '" style="width:' + (data.thumbnail.width || 200) + 'px;max-width:200px;border-radius:6px 6px 0 0;" />' : '';
             var extract = data.extract || '';
             if (extract.length > 300) extract = extract.substring(0, 300) + '...';
-            card.innerHTML = img +
+            card.innerHTML = '<button class="info-popup-close" title="Close">×</button>' + img +
                 '<div class="wp-card-body">' +
                 '<h3>' + escapeHTML(data.title || title) + '</h3>' +
                 '<p>' + escapeHTML(extract) + '</p>' +
                 '<a href="' + (data.content_urls?.desktop?.page || args.url) + '" target="_blank" class="wp-card-link">Read on Wikipedia →</a>' +
                 '</div>';
+            card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
         })
         .catch(function() {
-            // Fallback: show just title + link
-            card.innerHTML = '<div class="wp-card-body">' +
+            card.innerHTML = '<button class="info-popup-close" title="Close">×</button><div class="wp-card-body">' +
                 '<h3>' + escapeHTML(title.replace(/_/g, ' ')) + '</h3>' +
                 '<a href="' + args.url + '" target="_blank" class="wp-card-link">View on Wikipedia →</a>' +
                 '</div>';
+            card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
         });
 }
 
 function enrichHotspots(scenes) {
-    // Add Wikipedia card tooltips and audio click handlers to hotspots
     for (var sceneId in scenes) {
         var scene = scenes[sceneId];
         if (!scene.hotSpots) continue;
         for (var i = 0; i < scene.hotSpots.length; i++) {
             var hs = scene.hotSpots[i];
-            // Wikipedia card tooltips
-            if (hs.URL && isWikipediaUrl(hs.URL)) {
+            // Tag ALL hotspot types via createTooltipFunc — Pannellum 2.5.7 applies
+            // cssClass to different divs depending on type, but createTooltipFunc
+            // consistently receives the base div where our CSS classes need to live.
+            var tagClass = null;
+            if (hs.type === 'scene') {
+                tagClass = 'scene-hotspot';
+            } else if (hs.hotspotSubtype === 'audio') {
+                tagClass = 'audio-hotspot';
+            } else if (hs.hotspotSubtype === 'video') {
+                tagClass = 'video-hotspot';
+            } else if (hs.URL && isWikipediaUrl(hs.URL)) {
+                // Wikipedia cards: wikipediaCardTooltip adds wp-card-hotspot
                 var title = extractWikipediaTitle(hs.URL);
                 if (title) {
                     hs.createTooltipFunc = wikipediaCardTooltip;
                     hs.createTooltipArgs = { title: title, url: hs.URL };
                 }
+            } else if (hs.type === 'info') {
+                tagClass = 'info-hotspot';
             }
-            // Audio hotspots: add cssClass for CSS styling. The onclick interception
-            // in interceptAudioHotspots() reads audioUrl directly from tourData by index.
-            if (hs.hotspotSubtype === 'audio' && hs.audioUrl) {
-                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + 'audio-hotspot';
+            // Stamp the tag class via a lightweight tooltip function
+            if (tagClass && !hs.createTooltipFunc) {
+                hs.createTooltipFunc = (function(cls) {
+                    return function(div) { div.classList.add(cls); };
+                })(tagClass);
+                hs.createTooltipArgs = {};
             }
-            // Video hotspots: add cssClass for CSS styling + onclick overlay
-            if (hs.hotspotSubtype === 'video' && hs.videoUrl) {
-                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + 'video-hotspot';
+            // Keep cssClass for Pannellum's own use (it may still apply to child divs)
+            if (tagClass) {
+                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + tagClass;
             }
         }
     }
     return scenes;
+}
+
+// ── Info Click-to-Toggle ────────────────────────────────────────────────────
+
+function _doInterceptInfo(panorama) {
+    panorama.querySelectorAll('.info-hotspot, .wp-card-hotspot').forEach(function(el) {
+        if (el.dataset.infoIntercepted) return;
+        el.dataset.infoIntercepted = '1';
+        el.onmouseenter = null;
+        el.onmouseleave = null;
+        el.onclick = function(e) {
+            e.preventDefault(); e.stopPropagation();
+            var card = this.querySelector('.wp-card-tooltip');
+            if (card) { card.classList.toggle('visible'); }
+            else {
+                var t = this.querySelector('.pnlm-tooltip');
+                if (t) t.style.setProperty('display', t.style.display==='block'?'none':'block','important');
+            }
+            return false;
+        };
+    });
+    if (!panorama.dataset.infoObserver) {
+        panorama.dataset.infoObserver = '1';
+        new MutationObserver(function(){ _doInterceptInfo(panorama); }).observe(panorama, {childList:true,subtree:true});
+    }
+}
+
+function interceptInfoHotspots() {
+    var p = document.getElementById('panorama');
+    if (p) _doInterceptInfo(p);
+}
+
+// ── Show/Hide All ──────────────────────────────────────────────────────────
+
+var _showingAllInfo = false;
+var toggleAllInfoBtn = document.getElementById('toggleAllInfoBtn');
+if (toggleAllInfoBtn) {
+    toggleAllInfoBtn.addEventListener('click', function() {
+        _showingAllInfo = !_showingAllInfo;
+        var cards = document.querySelectorAll('.wp-card-tooltip');
+        var tips = document.querySelectorAll('.pnlm-hotspot-base .pnlm-tooltip');
+        if (_showingAllInfo) {
+            toggleAllInfoBtn.textContent = '🙈 Hide all popups';
+            cards.forEach(function(c){ c.classList.add('visible'); });
+            tips.forEach(function(t){ t.style.setProperty('display','block','important'); });
+        } else {
+            toggleAllInfoBtn.textContent = '👁 Show all popups';
+            cards.forEach(function(c){ c.classList.remove('visible'); });
+            tips.forEach(function(t){ t.style.setProperty('display','none','important'); });
+        }
+    });
+}
+
+// ── Open Hotspots from URL ─────────────────────────────────────────────────
+
+var _openedFromURL = false;
+function openHotspotsFromURL() {
+    if (_openedFromURL) return;
+    _openedFromURL = true;
+    var params = new URLSearchParams(window.location.hash.slice(1));
+    var openParam = params.get('open');
+    if (!openParam) return;
+    var indices = openParam.split(',').map(function(s){return parseInt(s.trim(),10);}).filter(function(n){return !isNaN(n);});
+    var all = document.querySelectorAll('#panorama .pnlm-hotspot-base');
+    indices.forEach(function(idx){
+        if (idx >= 0 && idx < all.length) {
+            var el = all[idx];
+            if (!el.classList.contains('scene-hotspot') && !el.classList.contains('audio-hotspot') && !el.classList.contains('video-hotspot')) {
+                el.click();
+            }
+        }
+    });
 }
 
 function isWikipediaUrl(url) {
@@ -835,10 +940,12 @@ function loadPreviewConfig(config) {
         renderSceneList();
         interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
     });
     viewer.on('load', function() {
         interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
         setStatus('Preview loaded \u2713', 'ok');
     });
     viewer.on('error', function(err) {
@@ -916,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .then(config => {
                     tourData = config;
+                    if (config.scenes) enrichHotspots(config.scenes);
                     if (config.default && config.default.autoLoad === undefined) {
                         config.default.autoLoad = true;
                     }
@@ -926,10 +1034,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         renderSceneList();
                         interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
                     });
                     viewer.on('load', function() {
                         interceptAudioHotspots();
                 interceptVideoHotspots();
+                interceptInfoHotspots();
                         setStatus('Preview loaded \u2713', 'ok');
                     });
                     viewer.on('error', function(err) {

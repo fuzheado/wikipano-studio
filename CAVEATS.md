@@ -137,7 +137,20 @@ loadSceneIntoViewport(sceneId, view);
 
 ---
 
-## 10. New Hotspot Subtype Checklist
+## 10. Every Viewer Creation Path Must Call `enrichHotspots`
+
+The viewer has 3 independent creation paths:
+1. Main load (`#User:Fuzheado/Panellum_Tour`)
+2. localStorage preview (`#preview=local`)
+3. Server preview (`#preview=<key>`)
+
+**All 3 must call `enrichHotspots(config.scenes)` before `pannellum.viewer()`.** `enrichHotspots` tags hotspots with CSS classes (`scene-hotspot`, `audio-hotspot`, etc.) and sets up `createTooltipFunc`. Missing this call in any path silently breaks scene navigation, audio/video playback, and click-to-toggle.
+
+When adding features that depend on `enrichHotspots`, check all 3 paths. Use `grep "pannellum.viewer"` to find every creation site.
+
+---
+
+## 11. New Hotspot Subtype Checklist
 
 When adding a new hotspot subtype (audio, video, quiz, etc.), **every** location that switches on type/subtype must be updated. Missing one causes fall-through to the `info` default — producing a wrong icon, wrong badge, wrong behavior, with no obvious error.
 
@@ -165,7 +178,7 @@ When adding a new hotspot subtype (audio, video, quiz, etc.), **every** location
 
 ---
 
-## 11. DOM Element Order: HTML Before Script
+## 12. DOM Element Order: HTML Before Script
 
 If JavaScript references DOM elements by ID at the top level (parse time, not inside an event handler), those elements must appear **before** the `<script>` tag in the HTML. `getElementById()` at parse time returns `null` for elements defined later in the document.
 
@@ -183,7 +196,7 @@ This manifested as the video overlay HTML being placed after `</script>`, causin
 
 ---
 
-## 12. Always Normalize Media Inputs Through `normalizeImageSource()`
+## 13. Always Normalize Media Inputs Through `normalizeImageSource()`
 
 `normalizeImageSource()` converts multiple Commons input formats into a canonical `File:` reference:
 - `File:Glenstone_24.jpg` → `File:Glenstone_24.jpg` (pass-through)
@@ -195,7 +208,7 @@ This manifested as the video overlay HTML being placed after `</script>`, causin
 
 ---
 
-## 13. Image Source Resolution Flow
+## 14. Image Source Resolution Flow
 
 Original title (moved from section 12). The full resolution flow:
 

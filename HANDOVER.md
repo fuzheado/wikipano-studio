@@ -185,6 +185,20 @@ photospheres/
 - Fix: video overlay HTML must be before `<script>` — `getElementById` at parse time returns null for later elements
 - Added to CAVEATS.md: Section 10 — New Hotspot Subtype Checklist, Section 11 — DOM Element Order
 
+### Feature: Click-to-Toggle Info Popups (2026-06-17)
+- Wikipedia cards and plain info tooltips were always visible (`.wp-card-tooltip` had no `display: none`)
+- Now hidden by default; click hotspot icon → popup appears; click again or × button → dismisses
+- Pannellum hover tooltips suppressed via `onmouseenter/onmouseleave = null`
+- "👁 Show all popups" toggle button in footer → reveals/hides all info popups at once
+- `&open=0,2` URL hash parameter → auto-opens popups at specified hotspot indices on load
+- Scene hotspots protected with `scene-hotspot` CSS tag + `tourData` type fallback
+
+### Bug Fix: Missing enrichHotspots in Server Preview Path (2026-06-17)
+- Server preview path (`#preview=<key>`) wasn't calling `enrichHotspots` before creating viewer
+- Without it, scene hotspots lacked `scene-hotspot` CSS tag → `interceptInfoHotspots` broke navigation
+- Fix: added `enrichHotspots(config.scenes)` call + defense-in-depth `tourData` type lookup in interception
+- Lesson: every viewer creation path must call `enrichHotspots` — check all 3 paths when adding features
+
 ### Bug Fix: Commons Page URL Normalization (2026-06-17)
 - Entering `https://commons.wikimedia.org/wiki/File:Video.webm` was stored as-is (HTML page, unplayable)
 - Fix: audio/video `confirmAddHotspot` now runs `normalizeImageSource()` before File: resolution — extracts filename from Commons page URLs

@@ -123,7 +123,9 @@ photospheres/
 - [x] `?scene=` URL parameter — direct-link to a scene for editing; URL stays in sync via replaceState
 - [x] SC-2.3: Canonical media references — all stored as direct URLs, never `File:` references
 - [x] Video hotspot (🎬) — popup overlay player supporting Commons files and YouTube embeds
-- [x] CAVEATS.md — 11 gotchas from debugging sessions (transform, paths, yaw, viewport, DOM order, ...)
+- [x] Info popup click-to-toggle — hidden by default, click to show/dismiss, × button, Show All toggle
+- [x] `&open=0,2` URL parameter — auto-open info popups at specified hotspot indices
+- [x] CAVEATS.md — 14 gotchas (transform, paths, yaw, viewport, enrichHotspots paths, DOM order, ...)
 
 ### Phase 2.5: New Toolforge Tool Deployment (2026-06-17)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.
