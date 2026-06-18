@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-18 (updated)
-**Session**: Scene icon fix, video export/import fixes, integrity check system, handoff
+**Session**: Default view capture for scenes, hotspot repositioning via "Set to Current View"
 
 ---
 
@@ -20,6 +20,9 @@
 | `?scene=` URL param | ✅ |
 | JSON validator (`--fix`) | ✅ |
 | Integrity checks at all boundaries | ✅ |
+| Scene thumbnails (Studio + Viewer) | ✅ |
+| **Set default view for scene** | ✅ |
+| **Hotspot repositioning (Set to Current View)** | ✅ |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
@@ -65,7 +68,7 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 ## What's Built
 
 ### Tour Viewer (`tour_viewer.html`)
-- Pannellum-based 360° viewer with scene sidebar
+- Pannellum-based 360° viewer with scene sidebar (thumbnails via CSS background-size:cover)
 - Loads tours from wiki pages: `#User:Fuzheado/Panellum_Tour`
 - Loads previews from localStorage: `#preview=local`
 - Wikipedia rich info cards on hotspot hover (fetches lead image + extract from REST API)
@@ -87,6 +90,8 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - Red ➤ icons for scene links, blue ⓘ for info hotspots (pulsing, glowing)
 - `?scene=` URL parameter: direct-link to a specific scene for editing; URL stays in sync
 - Viewport position preserved across all editing operations (add/edit/delete hotspots)
+- **Set as Default View**: Capture current viewport as scene's default yaw/pitch/hfov (button in properties panel)
+- **Set to Current View**: Reposition hotspots by navigating to desired spot and clicking button in edit modal
 
 ### Server (`tour_server.mjs`)
 - Zero external dependencies (Node.js built-ins only)
@@ -279,6 +284,25 @@ photospheres/
 - `validateHotspot(hs)` + `validateTour()` at add/edit, import, export, preview
 - 5-step rule: every new field must touch storage, import, export, preview, validation
 - CAVEATS.md §0: "Validate at Every Data Boundary"
+
+### Scene Thumbnails Fix (2026-06-18)
+- Studio and Viewer scene lists now show thumbnails (40×40px, CSS `background-size:cover`)
+- Root cause: server's `/api/tour` returns `scene._thumb` as direct Commons URL → CORS blocked (`net::ERR_BLOCKED_BY_ORB`)
+- Fix: `getSceneThumbnail()` ignores `_thumb` and uses `scene.panorama` (the `/images/<hash>.jpg` proxy path)
+- No extra network requests — browser scales the cached panorama
+- CAVEATS.md §15: "Scene Thumbnails: Use Proxied Paths, Not Direct Commons URLs"
+
+### Default View Capture + Hotspot Repositioning (2026-06-18)
+- **Feature 1**: "Set as Default View" button in scene properties panel
+  - Captures current viewport yaw/pitch/hfov and stores as scene default
+  - Uses `normalizeYaw()` for spec compliance
+  - Works with scene switching — values persist
+- **Feature 2**: "Set to Current View" button in hotspot edit/add modal
+  - Repositions hotspots without delete/re-add workflow
+  - Updates `state.capturedCoords` so `confirmAddHotspot()` uses new coords
+  - Works in both add and edit modes
+- Both features follow Panaedit pattern: navigate → capture → store
+- ~1 hour total implementation (under 1.5-2.5hr estimate)
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference

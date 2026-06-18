@@ -124,8 +124,11 @@ function renderSceneList() {
         const active = id === state.activeSceneId ? ' active' : '';
         const hotspotCount = scene.hotSpots ? scene.hotSpots.length : 0;
         const thumb = getSceneThumbnail(scene);
+        const thumbSpan = thumb
+            ? `<span class="thumb" style="background-image:url(${escAttr(thumb)})"></span>`
+            : `<span class="thumb"></span>`;
         return `<li class="${active}" onclick="selectScene('${id}')">
-            <span class="thumb" style="background-image:url(${escAttr(thumb)})"></span>
+            ${thumbSpan}
             <span class="name">${escHtml(scene.title)}</span>
             ${hotspotCount > 0 ? `<span class="badge">${hotspotCount}</span>` : ''}
             <button class="delete-btn" onclick="event.stopPropagation();deleteScene('${id}')" title="Delete">×</button>
@@ -134,12 +137,12 @@ function renderSceneList() {
 }
 
 function getSceneThumbnail(scene) {
-    // Use server-provided thumbnail if available
-    if (scene._thumb) return scene._thumb;
     const pano = scene.panorama || '';
     // Commons cached paths — use same path (browser will scale with CSS)
+    // NOTE: scene._thumb is the direct Commons URL (CORS-blocked), so we ignore it.
+    // The pano is already cached locally at /images/<hash>.jpg and CSS scales it.
     if (pano.startsWith('/images/')) return pano;
-    // Direct URLs
+    // Direct URLs — not common in studio (usually resolved to /images/)
     if (pano.startsWith('http')) return pano;
     return '';
 }
@@ -350,6 +353,48 @@ function renderProperties() {
     $('prop-pitch').value = scene.pitch || 0;
 
     renderHotspotList();
+}
+
+function handleSetDefaultView() {
+    if (!state.pannellumViewer || !state.activeSceneId) {
+        updateStatus('No scene loaded', true);
+        return;
+    }
+    const viewer = state.pannellumViewer;
+    const scene = state.scenes[state.activeSceneId];
+    
+    // Capture current view from Pannellum
+    scene.yaw = normalizeYaw(viewer.getYaw());
+    scene.pitch = viewer.getPitch();
+    scene.hfov = viewer.getHfov();
+    
+    // Update the input fields to reflect new values
+    $('prop-yaw').value = scene.yaw.toFixed(2);
+    $('prop-pitch').value = scene.pitch.toFixed(2);
+    $('prop-hfov').value = scene.hfov.toFixed(0);
+    
+    updateStatus(`Default view set for "${scene.title}"`);
+}
+
+function handleHsSetCurrentView() {
+    if (!state.pannellumViewer) {
+        updateStatus('No viewport loaded', true);
+        return;
+    }
+    const viewer = state.pannellumViewer;
+    
+    // Capture current view from Pannellum
+    const yaw = normalizeYaw(viewer.getYaw());
+    const pitch = viewer.getPitch();
+    
+    // Update state.capturedCoords so confirmAddHotspot uses the new values
+    state.capturedCoords = { pitch, yaw };
+    
+    // Update the modal display
+    $('modal-hs-pitch').textContent = pitch.toFixed(2);
+    $('modal-hs-yaw').textContent = yaw.toFixed(2);
+    
+    updateStatus('Coordinates updated to current view');
 }
 
 function renderHotspotList() {
@@ -988,6 +1033,9 @@ function setupPropertyBindings() {
             updateStatus('Properties updated');
         });
     });
+    
+    // Set default view button
+    $('set-default-view-btn').addEventListener('click', handleSetDefaultView);
 }
 
 // ── Modal Helpers ────────────────────────────────────────────────────────────
@@ -1074,6 +1122,7 @@ function init() {
     $('modal-hs-type').addEventListener('change', updateHsModalFields);
     $('modal-confirm-hs').addEventListener('click', confirmAddHotspot);
     $('modal-cancel-hs').addEventListener('click', () => modalHide('modal-add-hs'));
+    $('hs-set-current-view-btn').addEventListener('click', handleHsSetCurrentView);
 
     // Import modal
     $('modal-confirm-import').addEventListener('click', importTour);

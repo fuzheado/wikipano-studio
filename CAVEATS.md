@@ -273,3 +273,25 @@ User input → normalizeImageSource() → stored in scene.panorama
                                           ↓
                       previewTour() → resolvePanoramaForPreview() → same-origin cached path
 ```
+
+---
+
+## 15. Scene Thumbnails: Use Proxied Paths, Not Direct Commons URLs
+
+The server's `/api/tour` endpoint returns `scene._thumb` as a **direct Commons URL** (e.g., `https://upload.wikimedia.org/.../200px-...`). This is fine for export but **CORS-blocked** when used as a CSS `background-image` in the browser.
+
+**Wrong:** Use `scene._thumb` directly → `net::ERR_BLOCKED_BY_ORB`
+**Right:** Use `scene.panorama` (the `/images/<hash>.jpg` proxy path) → browser scales via `background-size: cover`
+
+The `getSceneThumbnail()` function in both Studio and Viewer ignores `_thumb` and returns the panorama path. No extra network requests, no CORS issues.
+
+```javascript
+// Both Studio and Viewer use this pattern:
+function getSceneThumbnail(scene) {
+    const pano = scene.panorama || '';
+    if (pano.startsWith('/images/')) return pano;  // ✅ proxied, same-origin
+    return '';
+}
+```
+
+**When adding thumbnails to a new UI**: Always check if the path starts with `/images/`. Never use `scene._thumb` or any direct Commons URL in CSS `background-image` or `<img src>` — the browser will block it.
