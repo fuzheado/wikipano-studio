@@ -115,9 +115,15 @@ photospheres/
 - [x] Modals with dismiss (× button, click-outside, Escape)
 - [x] Pannellum JSON Schema validator (`scripts/validate-pannellum.mjs`) with `--fix` support
 - [x] Server `/api/resolve-url` flat response fix (was nested `{url: {url:...}}`)
+- [x] SC-2.0: Viewport stability — no editing operation resets the view (add/edit/delete hotspots)
 - [x] SC-2.1: Hotspot click in viewport → edit modal (no viewport reset)
 - [x] SC-2.2: Hotspot card list — click to view, not hover (was hover-to-warp)
 - [x] Playwright test suite for SC-2.1 and SC-2.2 (`tests/studio-behaviors.spec.js`)
+- [x] Audio hotspot type (🎵) — custom subtype pattern with Commons audio playback in viewer
+- [x] `?scene=` URL parameter — direct-link to a scene for editing; URL stays in sync via replaceState
+- [x] SC-2.3: Canonical media references — all stored as direct URLs, never `File:` references
+- [x] Video hotspot (🎬) — popup overlay player supporting Commons files and YouTube embeds
+- [x] CAVEATS.md — 11 gotchas from debugging sessions (transform, paths, yaw, viewport, DOM order, ...)
 
 ### Phase 2.5: New Toolforge Tool Deployment (2026-06-17)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.

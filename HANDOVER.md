@@ -38,7 +38,11 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - Cycle hotspots with "Show All" button
 - Hover hotspot cards → viewport pans to face them
 - Yaw auto-normalized to [-180, 180] per Pannellum JSON Schema (at capture, export, and preview)
-- Red ➤ icons for scene links, blue i for info hotspots (pulsing, glowing)
+- Purple ▶️ icons for video hotspots (popup overlay player — Commons + YouTube)
+- Green 🎵 icons for audio hotspots (pulsing glow, plays Commons sound files in viewer)
+- Red ➤ icons for scene links, blue ⓘ for info hotspots (pulsing, glowing)
+- `?scene=` URL parameter: direct-link to a specific scene for editing; URL stays in sync
+- Viewport position preserved across all editing operations (add/edit/delete hotspots)
 
 ### Server (`tour_server.mjs`)
 - Zero external dependencies (Node.js built-ins only)
@@ -153,6 +157,55 @@ photospheres/
 - `--fix` mode: auto-normalizes yaw and URL-encodes spaces in-place
 - `--raw` flag: shows unfiltered schema errors for debugging
 - Tested against `User:Fuzheado/Panellum_Tour.json` on Commons — found 4 fixable spec violations (3 yaw, 1 URL space)
+
+### Feature: Audio Hotspot Type (2026-06-17)
+- New hotspot subtype: `Audio 🎵` — plays a sound file (Commons .ogg/.mp3) on click in the viewer
+- Custom subtype pattern: maps to Pannellum `type: "info"` + `hotspotSubtype: "audio"` + `audioUrl`
+- Studio: green pulsing 🎵 icon, audio URL input in modal, "AUDIO" badge in hotspot list
+- Viewer: `interceptAudioHotspots()` wraps `.audio-hotspot` onclick → play/pause, `.playing` CSS class
+- Export/import preserves `hotspotSubtype` and `audioUrl` fields
+- CSS fix: removed `transform: scale()` from `@keyframes audio-wave` (overrides Pannellum's inline positioning)
+- Viewer CSS: full `.audio-hotspot` styling (green 44px circle, 🎵 icon, `.pnlm-sprite` override)
+
+### Bug Fix: Preview Path (2026-06-17)
+- Export uses `_original` (canonical Commons URL); preview must use cached `/images/` paths (same-origin)
+- Preview was incorrectly using `_original` → Pannellum failed with "could not be accessed" on cross-origin URLs
+- Reverted `previewTour()` to use `resolvePanoramaForPreview()` only (no `_original` fallback)
+
+### Feature: `?scene=` URL Parameter (2026-06-17)
+- `?page=...&scene=Museum` jumps directly to a scene on load
+- `selectScene()` calls `history.replaceState` to keep URL in sync — shareable/bookmarkable
+- Falls back to first scene gracefully if specified scene doesn't exist
+
+### Feature: Video Hotspot (2026-06-17)
+- New hotspot subtype: `Video 🎬` — popup overlay player supporting Commons + YouTube
+- Studio: purple ▶️ icon, File: resolution at input time, `hotspotSubtype: "video"` + `videoUrl`
+- Viewer: MutationObserver-based onclick interception, popup overlay with iframe (YouTube) or `<video>` tag (Commons/direct)
+- Overlay: 90vw × 85vh, close via × / backdrop click / Escape key
+- Fix: video overlay HTML must be before `<script>` — `getElementById` at parse time returns null for later elements
+- Added to CAVEATS.md: Section 10 — New Hotspot Subtype Checklist, Section 11 — DOM Element Order
+
+### Bug Fix: Commons Page URL Normalization (2026-06-17)
+- Entering `https://commons.wikimedia.org/wiki/File:Video.webm` was stored as-is (HTML page, unplayable)
+- Fix: audio/video `confirmAddHotspot` now runs `normalizeImageSource()` before File: resolution — extracts filename from Commons page URLs
+- Viewer fallback resolvers also updated to handle Commons page URLs
+- Lesson: always normalize media input through `normalizeImageSource()` — it handles File:, Commons page URLs, bare filenames, and passes direct URLs through unchanged
+
+### Bug Fix: Audio File Resolution + Media Consistency (2026-06-17)
+- Audio hotspots were storing `File:Sound.ogg` references (wiki format) while images stored canonical Commons URLs — inconsistent
+- `confirmAddHotspot()` now resolves `File:` audio references to direct `https://upload.wikimedia.org/...` URLs before storage
+- Viewer retains `resolveAudioFileUrl()` as a fallback for legacy data
+- Added SC-2.3 to PRD: all media references must use canonical direct URLs
+
+### Bug Fix: Viewport Preservation (2026-06-17)
+- Adding/editing/deleting a hotspot was resetting the viewport to the scene's default orientation
+- `loadSceneIntoViewport()` now accepts optional `viewOverride` parameter
+- Both `confirmAddHotspot()` and `deleteHotspot()` capture current view before reload
+- Added SC-2.0 to PRD: overarching principle that no editing operation shall disturb the viewport
+
+### Documentation: CAVEATS.md (2026-06-17)
+- New file: 9 gotchas from debugging (transform, paths, yaw, viewport, onclick, radio toggle, subtypes, image sources)
+- Pannellum skill updated: "Never Use `transform` in Keyframe Animations" in caveats section
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference

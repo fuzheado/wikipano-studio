@@ -151,6 +151,12 @@ function selectScene(id) {
     renderSceneList();
     loadSceneIntoViewport(id);
     renderProperties();
+
+    // Update the URL so the current scene is shareable/bookmarkable.
+    // Uses replaceState (not pushState) — scene switches don't create history entries.
+    const url = new URL(window.location);
+    url.searchParams.set('scene', id);
+    history.replaceState(null, '', url);
 }
 
 // ── Viewport (Pannellum) ─────────────────────────────────────────────────────
@@ -195,7 +201,7 @@ async function resolveSceneImage(scene) {
     return scene.panorama;
 }
 
-async function loadSceneIntoViewport(id) {
+async function loadSceneIntoViewport(id, viewOverride) {
     const scene = state.scenes[id];
     if (!scene) return;
 
@@ -215,9 +221,9 @@ async function loadSceneIntoViewport(id) {
         type: 'equirectangular',
         panorama: panoramaUrl,
         autoLoad: true,
-        hfov: scene.hfov || 110,
-        yaw: scene.yaw || 0,
-        pitch: scene.pitch || 0,
+        hfov: (viewOverride && viewOverride.hfov != null) ? viewOverride.hfov : (scene.hfov || 110),
+        yaw: (viewOverride && viewOverride.yaw != null) ? viewOverride.yaw : (scene.yaw || 0),
+        pitch: (viewOverride && viewOverride.pitch != null) ? viewOverride.pitch : (scene.pitch || 0),
         crossOrigin: 'anonymous',
     };
 
@@ -228,7 +234,9 @@ async function loadSceneIntoViewport(id) {
         // Re-apply hotspots
         if (scene.hotSpots) {
             scene.hotSpots.forEach(hs => {
-                const hsClass = 'studio-hotspot ' + (hs.type === 'scene' ? 'studio-scene-hs' : 'studio-info-hs');
+                const subtype = hs.hotspotSubtype || (hs.type === 'scene' ? 'scene' : 'info');
+                const typeClass = subtype === 'scene' ? 'studio-scene-hs' : subtype === 'audio' ? 'studio-audio-hs' : subtype === 'video' ? 'studio-video-hs' : 'studio-info-hs';
+                const hsClass = 'studio-hotspot ' + typeClass;
                 try {
                     state.pannellumViewer.addHotSpot({
                         pitch: hs.pitch,
@@ -358,12 +366,17 @@ function renderHotspotList() {
     }
 
     hotspotListEl.innerHTML = hotspots.map((hs, idx) => {
-        const typeClass = hs.type === 'scene' ? 'scene' : 'info';
-        const typeLabel = hs.type === 'scene' ? 'SCENE LINK' : 'INFO';
+        const subtype = hs.hotspotSubtype || (hs.type === 'scene' ? 'scene' : 'info');
+        const typeClass = subtype;
+        const typeLabel = subtype === 'scene' ? 'SCENE LINK' : subtype === 'audio' ? 'AUDIO' : subtype === 'video' ? 'VIDEO' : 'INFO';
         let detail = '';
-        if (hs.type === 'scene') {
+        if (subtype === 'scene' || hs.type === 'scene') {
             const targetScene = state.scenes[hs.sceneId];
             detail = `→ ${targetScene ? escHtml(targetScene.title) : hs.sceneId || '(none)'}`;
+        } else if (subtype === 'audio' && hs.audioUrl) {
+            detail = `🎵 ${escHtml(hs.audioUrl.substring(0, 60))}`;
+        } else if (subtype === 'video' && hs.videoUrl) {
+            detail = `🎬 ${escHtml(hs.videoUrl.substring(0, 60))}`;
         } else if (hs.URL) {
             detail = `🔗 ${escHtml(hs.URL.substring(0, 60))}`;
         }
@@ -421,6 +434,8 @@ function addHotspot() {
     $('modal-hs-yaw').textContent = state.capturedCoords.yaw.toFixed(2);
     $('modal-hs-text').value = '';
     $('modal-hs-url').value = '';
+    $('modal-hs-audio').value = '';
+    $('modal-hs-video').value = '';
     $('modal-hs-type').value = 'scene';
 
     // Populate target scene dropdown
@@ -442,7 +457,10 @@ function editHotspot(sceneId, index) {
     $('modal-hs-yaw').textContent = hs.yaw.toFixed(2);
     $('modal-hs-text').value = hs.text || '';
     $('modal-hs-url').value = hs.URL || '';
-    $('modal-hs-type').value = hs.type || 'info';
+    $('modal-hs-audio').value = hs.audioUrl || '';
+    $('modal-hs-video').value = hs.videoUrl || '';
+    // Detect subtype: use hotspotSubtype if present, otherwise fall back to Pannellum type
+    $('modal-hs-type').value = hs.hotspotSubtype || hs.type || 'info';
 
     populateTargetSceneSelect();
     if (hs.type === 'scene' && hs.sceneId) {
@@ -469,35 +487,93 @@ function deleteHotspot(sceneId, index) {
     if (!state.scenes[sceneId]) return;
     state.scenes[sceneId].hotSpots.splice(index, 1);
 
-    // Refresh viewer hotspots
-    if (state.activeSceneId === sceneId) {
-        loadSceneIntoViewport(sceneId);
+    // Refresh viewer hotspots, preserving the current view position
+    if (state.activeSceneId === sceneId && state.pannellumViewer) {
+        const v = state.pannellumViewer;
+        const view = { pitch: v.getPitch(), yaw: v.getYaw(), hfov: v.getHfov() };
+        loadSceneIntoViewport(sceneId, view);
     }
     renderHotspotList();
     renderSceneList();
     updateStatus('Hotspot deleted');
 }
 
-function confirmAddHotspot() {
-    const type = $('modal-hs-type').value;
+async function confirmAddHotspot() {
+    const modalType = $('modal-hs-type').value;
     const text = $('modal-hs-text').value.trim();
     const sceneId = state.activeSceneId;
     if (!sceneId) return;
 
+    // Audio and video hotspots map to Pannellum type 'info' (they don't navigate scenes).
+    // The custom subtype and media URL are stored alongside for viewer behavior.
+    const pannellumType = (modalType === 'audio' || modalType === 'video') ? 'info' : modalType;
+
     const hs = {
         pitch: state.capturedCoords.pitch,
         yaw: state.capturedCoords.yaw,
-        type: type,
+        type: pannellumType,
         text: text || 'Click here',
     };
 
-    if (type === 'scene') {
+    if (modalType === 'audio') {
+        hs.hotspotSubtype = 'audio';
+        let audioUrl = $('modal-hs-audio').value.trim();
+        if (!audioUrl) {
+            updateStatus('Please enter an audio URL', true);
+            return;
+        }
+        // Normalize Commons page URLs → File: references, then resolve to direct URLs.
+        // e.g. https://commons.wikimedia.org/wiki/File:Sound.ogg → File:Sound.ogg → upload URL
+        audioUrl = normalizeImageSource(audioUrl);
+        if (/^File:/i.test(audioUrl)) {
+            const fileMatch = audioUrl.match(/^File:\s*(.+)$/i);
+            if (fileMatch) {
+                updateStatus('Resolving audio file...');
+                try {
+                    const resp = await fetch(`/api/resolve?file=${encodeURIComponent(fileMatch[1].trim())}`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        audioUrl = data.original || data.url || audioUrl;
+                    }
+                } catch(e) {
+                    console.warn('Failed to resolve audio file:', audioUrl, e);
+                }
+            }
+        }
+        hs.audioUrl = audioUrl;
+    } else if (modalType === 'video') {
+        hs.hotspotSubtype = 'video';
+        let videoUrl = $('modal-hs-video').value.trim();
+        if (!videoUrl) {
+            updateStatus('Please enter a video URL', true);
+            return;
+        }
+        // Normalize Commons page URLs → File: references, then resolve to direct URLs.
+        // e.g. https://commons.wikimedia.org/wiki/File:Video.webm → File:Video.webm → upload URL
+        videoUrl = normalizeImageSource(videoUrl);
+        if (/^File:/i.test(videoUrl)) {
+            const fileMatch = videoUrl.match(/^File:\s*(.+)$/i);
+            if (fileMatch) {
+                updateStatus('Resolving video file...');
+                try {
+                    const resp = await fetch(`/api/resolve?file=${encodeURIComponent(fileMatch[1].trim())}`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        videoUrl = data.original || data.url || videoUrl;
+                    }
+                } catch(e) {
+                    console.warn('Failed to resolve video file:', videoUrl, e);
+                }
+            }
+        }
+        hs.videoUrl = videoUrl;
+    } else if (modalType === 'scene') {
         hs.sceneId = $('modal-hs-scene').value;
         if (!hs.sceneId) {
             updateStatus('Please select a target scene', true);
             return;
         }
-    } else if (type === 'info') {
+    } else if (modalType === 'info') {
         const url = $('modal-hs-url').value.trim();
         if (url) hs.URL = url;
     }
@@ -511,9 +587,13 @@ function confirmAddHotspot() {
         updateStatus(`Hotspot added: ${hs.text}`);
     }
 
-    // Reload viewer to reflect changes (handles UI refresh on load event)
+    // Reload viewer to reflect changes, preserving the current view position.
+    // Capture pitch/yaw/hfov before destroying the viewer so the user isn't
+    // warped back to the scene's default orientation.
     if (state.pannellumViewer) {
-        loadSceneIntoViewport(sceneId);
+        const v = state.pannellumViewer;
+        const view = { pitch: v.getPitch(), yaw: v.getYaw(), hfov: v.getHfov() };
+        loadSceneIntoViewport(sceneId, view);
     } else {
         renderHotspotList();
         renderSceneList();
@@ -532,6 +612,8 @@ function updateHsModalFields() {
     const type = $('modal-hs-type').value;
     $('modal-hs-scene-group').style.display = type === 'scene' ? 'block' : 'none';
     $('modal-hs-url-group').style.display = type === 'info' ? 'block' : 'none';
+    $('modal-hs-audio-group').style.display = type === 'audio' ? 'block' : 'none';
+    $('modal-hs-video-group').style.display = type === 'video' ? 'block' : 'none';
 }
 
 // ── Import / Export ──────────────────────────────────────────────────────────
@@ -562,6 +644,8 @@ function importTourData(data) {
                     text: hs.text || '',
                     URL: hs.URL || undefined,
                     sceneId: hs.sceneId || undefined,
+                    hotspotSubtype: hs.hotspotSubtype || undefined,
+                    audioUrl: hs.audioUrl || undefined,
                 })),
             };
             state.sceneOrder.push(id);
@@ -659,7 +743,10 @@ function updateExportTextarea() {
 async function exportTour() {
     updateStatus('Resolving images...');
 
-    // Resolve all scene data once — stored in _exportResolvedScenes for radio toggling
+    // Resolve all scene data once — stored in _exportResolvedScenes for radio toggling.
+    // Use _original (true Commons URL) for portable exports. Unlike preview (which needs
+    // same-origin cached paths), exported JSON is consumed elsewhere so it must use the
+    // canonical Commons upload URL.
     _exportResolvedScenes = {};
     for (const id of state.sceneOrder) {
         const s = state.scenes[id];
@@ -675,6 +762,8 @@ async function exportTour() {
                 const h = { pitch: hs.pitch, yaw: normalizeYaw(hs.yaw), type: hs.type || 'info', text: hs.text || '' };
                 if (hs.type === 'scene' && hs.sceneId) h.sceneId = hs.sceneId;
                 if (hs.URL) h.URL = hs.URL;
+                if (hs.hotspotSubtype) h.hotspotSubtype = hs.hotspotSubtype;
+                if (hs.audioUrl) h.audioUrl = hs.audioUrl;
                 return h;
             }),
         };
@@ -745,10 +834,11 @@ async function previewTour() {
     updateStatus('Resolving images...');
     const resolvedScenes = {};
 
-    // Resolve each scene's panorama — prefer original Commons URL
+    // Resolve each scene's panorama through the server for same-origin cached paths.
+    // (Unlike export, preview needs same-origin images to work in Pannellum.)
     for (const id of state.sceneOrder) {
         const scene = state.scenes[id];
-        const panorama = scene._original || await resolvePanoramaForPreview(scene.panorama);
+        const panorama = await resolvePanoramaForPreview(scene.panorama);
         resolvedScenes[id] = {
             title: scene.title,
             hfov: scene.hfov,
@@ -760,6 +850,9 @@ async function previewTour() {
                 const out = { pitch: hs.pitch, yaw: normalizeYaw(hs.yaw), type: hs.type || 'info', text: hs.text || '' };
                 if (hs.type === 'scene' && hs.sceneId) out.sceneId = hs.sceneId;
                 if (hs.URL) out.URL = hs.URL;
+                if (hs.hotspotSubtype) out.hotspotSubtype = hs.hotspotSubtype;
+                if (hs.audioUrl) out.audioUrl = hs.audioUrl;
+                if (hs.videoUrl) out.videoUrl = hs.videoUrl;
                 return out;
             }),
         };
@@ -927,7 +1020,14 @@ function init() {
                 if (!r.ok) return r.json().then(e => { throw new Error(e.error); });
                 return r.json();
             })
-            .then(data => importTourData(data))
+            .then(data => {
+                importTourData(data);
+                // Jump to a specific scene if ?scene=... is in the URL
+                const targetScene = urlParams.get('scene');
+                if (targetScene && state.scenes[targetScene]) {
+                    selectScene(targetScene);
+                }
+            })
             .catch(e => updateStatus('Auto-import failed: ' + e.message, true));
     }
 }

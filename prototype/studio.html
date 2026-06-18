@@ -135,6 +135,8 @@ body {
 }
 .hotspot-card .hs-type.scene { background: var(--blue); color: #fff; }
 .hotspot-card .hs-type.info { background: var(--green); color: #fff; }
+.hotspot-card .hs-type.audio { background: #40916c; color: #fff; }
+.hotspot-card .hs-type.video { background: #7c3aed; color: #fff; }
 .hotspot-card .hs-text { flex: 1; }
 .hotspot-card .hs-coords { font-size: 0.7rem; color: var(--muted); font-family: monospace; }
 .hotspot-card .hs-delete {
@@ -234,9 +236,65 @@ body {
     line-height: 1;
     z-index: 999;
 }
+/* Audio hotspot: speaker icon with sound-wave animation */
+.studio-audio-hs {
+    height: 44px !important;
+    width: 44px !important;
+    background: #2d6a4f !important;
+    border-radius: 50% !important;
+    border: 3px solid #fff !important;
+    box-shadow: 0 0 18px rgba(45, 106, 79, 0.8), 0 0 40px rgba(45, 106, 79, 0.3) !important;
+    animation: audio-wave 1.2s ease-in-out infinite;
+}
+.studio-audio-hs::after {
+    content: '🎵';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    line-height: 1;
+    z-index: 999;
+}
+@keyframes audio-wave {
+    0%, 100% { box-shadow: 0 0 18px rgba(45, 106, 79, 0.8), 0 0 40px rgba(45, 106, 79, 0.3); }
+    50% { box-shadow: 0 0 32px rgba(45, 106, 79, 1), 0 0 70px rgba(45, 106, 79, 0.6); }
+}
+
+/* Video hotspot: purple play button */
+.studio-video-hs {
+    height: 48px !important;
+    width: 48px !important;
+    background: #7c3aed !important;
+    border-radius: 50% !important;
+    border: 3px solid #fff !important;
+    box-shadow: 0 0 18px rgba(124, 58, 237, 0.8), 0 0 40px rgba(124, 58, 237, 0.3) !important;
+    animation: video-glow 1.5s ease-in-out infinite;
+}
+.studio-video-hs::after {
+    content: '▶️';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    line-height: 1;
+    z-index: 999;
+}
+@keyframes video-glow {
+    0%, 100% { box-shadow: 0 0 18px rgba(124, 58, 237, 0.8), 0 0 40px rgba(124, 58, 237, 0.3); }
+    50% { box-shadow: 0 0 32px rgba(124, 58, 237, 1), 0 0 70px rgba(124, 58, 237, 0.6); }
+}
+
 /* Override Pannellum sprite backgrounds */
 .studio-scene-hs.pnlm-sprite,
-.studio-info-hs.pnlm-sprite {
+.studio-info-hs.pnlm-sprite,
+.studio-audio-hs.pnlm-sprite,
+.studio-video-hs.pnlm-sprite {
     background-image: none !important;
 }
 #add-hotspot-btn {
@@ -388,6 +446,8 @@ body {
         <select id="modal-hs-type">
             <option value="scene">Scene Link (navigate to another scene)</option>
             <option value="info">Info (tooltip + optional URL)</option>
+            <option value="audio">Audio 🎵 (play a sound)</option>
+            <option value="video">Video 🎬 (popup player)</option>
         </select>
         <label style="margin-top:12px;">Hover Text</label>
         <input type="text" id="modal-hs-text" placeholder="Text shown on hover">
@@ -398,6 +458,16 @@ body {
         <div id="modal-hs-url-group" style="display:none;">
             <label style="margin-top:12px;">Link URL (optional)</label>
             <input type="text" id="modal-hs-url" placeholder="https://en.wikipedia.org/wiki/...">
+        </div>
+        <div id="modal-hs-audio-group" style="display:none;">
+            <label style="margin-top:12px;">Audio Source</label>
+            <input type="text" id="modal-hs-audio" placeholder="File:Sound.ogg  or  https://upload.wikimedia.org/.../sound.ogg">
+            <div class="hint">Accepts: <code>File:Sound.ogg</code>, Commons page URL, or direct .ogg/.mp3 URL. File: references are resolved automatically.</div>
+        </div>
+        <div id="modal-hs-video-group" style="display:none;">
+            <label style="margin-top:12px;">Video Source</label>
+            <input type="text" id="modal-hs-video" placeholder="File:Video.webm  or  https://youtube.com/watch?v=...  or  direct URL">
+            <div class="hint">Accepts: Commons <code>File:Video.webm</code>, YouTube URL (watch or youtu.be), or direct .webm/.mp4 URL. File: references are resolved automatically.</div>
         </div>
         <div class="actions">
             <button id="modal-cancel-hs">Cancel</button>

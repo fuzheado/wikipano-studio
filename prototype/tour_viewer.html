@@ -224,6 +224,77 @@
             display: none !important;
         }
 
+        /* Audio hotspot: styled like the studio's green 🎵 icon */
+        .audio-hotspot {
+            height: 44px !important;
+            width: 44px !important;
+            background: #2d6a4f !important;
+            border-radius: 50% !important;
+            border: 3px solid #fff !important;
+            box-shadow: 0 0 18px rgba(45, 106, 79, 0.8), 0 0 40px rgba(45, 106, 79, 0.3) !important;
+            animation: audio-wave-viewer 1.2s ease-in-out infinite;
+            transition: box-shadow 0.3s !important;
+        }
+        .audio-hotspot::after {
+            content: '🎵';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fff;
+            line-height: 1;
+            z-index: 999;
+        }
+        .audio-hotspot.pnlm-sprite {
+            background-image: none !important;
+        }
+        @keyframes audio-wave-viewer {
+            0%, 100% { box-shadow: 0 0 18px rgba(45, 106, 79, 0.8), 0 0 40px rgba(45, 106, 79, 0.3); }
+            50% { box-shadow: 0 0 32px rgba(45, 106, 79, 1), 0 0 70px rgba(45, 106, 79, 0.6); }
+        }
+
+        /* Audio hotspot: extra glow when actively playing */
+        .audio-hotspot.playing {
+            box-shadow: 0 0 28px rgba(100, 200, 150, 1), 0 0 60px rgba(100, 200, 150, 0.6) !important;
+            animation: audio-play-pulse 0.8s ease-in-out infinite;
+        }
+        @keyframes audio-play-pulse {
+            0%, 100% { box-shadow: 0 0 28px rgba(100, 200, 150, 1), 0 0 60px rgba(100, 200, 150, 0.6); }
+            50% { box-shadow: 0 0 44px rgba(100, 200, 150, 1), 0 0 90px rgba(100, 200, 150, 0.8); }
+        }
+
+        /* Video hotspot: purple play button */
+        .video-hotspot {
+            height: 48px !important;
+            width: 48px !important;
+            background: #7c3aed !important;
+            border-radius: 50% !important;
+            border: 3px solid #fff !important;
+            box-shadow: 0 0 18px rgba(124, 58, 237, 0.8), 0 0 40px rgba(124, 58, 237, 0.3) !important;
+            animation: video-glow-v 1.5s ease-in-out infinite;
+        }
+        .video-hotspot::after {
+            content: '▶️';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+            line-height: 1;
+            z-index: 999;
+        }
+        .video-hotspot.pnlm-sprite {
+            background-image: none !important;
+        }
+        @keyframes video-glow-v {
+            0%, 100% { box-shadow: 0 0 18px rgba(124, 58, 237, 0.8), 0 0 40px rgba(124, 58, 237, 0.3); }
+            50% { box-shadow: 0 0 32px rgba(124, 58, 237, 1), 0 0 70px rgba(124, 58, 237, 0.6); }
+        }
+
         /* ── Footer ─────────────────────────────────── */
         footer {
             background: var(--surface);
@@ -280,6 +351,15 @@
     <span>Powered by <a href="https://pannellum.org/" target="_blank" style="color:var(--highlight);">Pannellum</a></span>
     <span>Tour JSON stored on <a href="https://commons.wikimedia.org/" target="_blank" style="color:var(--highlight);">Wikimedia Commons</a></span>
 </footer>
+
+<!-- Video overlay popup (must be before <script> — JS references these IDs at parse time) -->
+<div id="video-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;">
+    <div id="video-overlay-content" style="position:relative;max-width:90vw;max-height:85vh;width:800px;">
+        <button id="video-overlay-close" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:10001;">×</button>
+        <div id="video-overlay-player" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;background:#000;border-radius:8px;">
+        </div>
+    </div>
+</div>
 
 <script>
 // ── Configuration ───────────────────────────────────────────────────────────
@@ -383,9 +463,13 @@ function loadTour(configUrl) {
             viewer.on('scenechange', function(sceneId) {
                 currentScene = sceneId;
                 renderSceneList();
+                interceptAudioHotspots();
+                interceptVideoHotspots();
             });
 
             viewer.on('load', function() {
+                interceptAudioHotspots();
+                interceptVideoHotspots();
                 setStatus('Tour loaded successfully \u2713', 'ok');
             });
 
@@ -414,6 +498,240 @@ function switchToScene(sceneId) {
         renderSceneList();
     } catch(e) {
         console.error('Scene switch error:', e);
+    }
+}
+
+// ── Audio Hotspot Support ───────────────────────────────────────────────────
+
+const audioPlayer = document.createElement('audio');
+audioPlayer.id = 'audioPlayer';
+audioPlayer.style.display = 'none';
+document.body.appendChild(audioPlayer);
+
+/**
+ * Intercept clicks on audio hotspots to play sound instead of navigating.
+ * Called after viewer init and on every scene change (Pannellum re-creates hotspot DOM).
+ */
+// ── Audio hotspot onclick wrapping — one-shot per element ──────────────────
+
+/** Resolve a Commons File: reference to a direct playable URL */
+function resolveAudioFileUrl(fileRef, callback) {
+    // Normalize Commons page URLs → extract filename, then resolve via server
+    var match = fileRef.match(/(?:^File:|commons\.wikimedia\.org\/wiki\/File:)\s*(.+)$/i);
+    if (!match) { callback(fileRef); return; }
+    fetch('/api/resolve?file=' + encodeURIComponent(match[1].trim()))
+        .then(function(r) { return r.json(); })
+        .then(function(data) { callback(data.original || data.url); })
+        .catch(function() { callback(fileRef); });
+}
+
+function wrapAudioHotspot(el) {
+    if (el.dataset.audioWrapped) return;
+    el.dataset.audioWrapped = '1';
+
+    // Look up the audio URL from tourData by matching hotspot DOM order.
+    var sceneId = currentScene;
+    var scene = tourData && tourData.scenes && tourData.scenes[sceneId];
+    var audioHots = [];
+    if (scene && scene.hotSpots) {
+        for (var i = 0; i < scene.hotSpots.length; i++) {
+            if (scene.hotSpots[i].hotspotSubtype === 'audio' && scene.hotSpots[i].audioUrl) {
+                audioHots.push(scene.hotSpots[i].audioUrl);
+            }
+        }
+    }
+
+    // Find this element's index among audio hotspot DOM elements
+    var allAudio = document.querySelectorAll('.audio-hotspot');
+    var domIdx = Array.prototype.indexOf.call(allAudio, el);
+    var rawUrl = audioHots[domIdx] || null;
+
+    // Pre-resolve Commons File: references to direct audio URLs.
+    // The browser <audio> element can't play File: references — it needs a
+    // direct URL like https://upload.wikimedia.org/.../file.ogg.
+    // Resolution starts immediately when the hotspot appears; by the time
+    // the user clicks, the resolved URL should be cached on the element.
+    if (rawUrl) {
+        resolveAudioFileUrl(rawUrl, function(resolved) {
+            el.dataset.resolvedAudioUrl = resolved;
+        });
+    }
+
+    el.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Use the pre-resolved URL if available, otherwise fall back to raw
+        var audioUrl = el.dataset.resolvedAudioUrl || rawUrl;
+        if (audioUrl) {
+            if (audioPlayer.src === audioUrl && !audioPlayer.paused) {
+                audioPlayer.pause();
+                el.classList.remove('playing');
+            } else {
+                audioPlayer.src = audioUrl;
+                audioPlayer.play().then(function() {
+                    el.classList.add('playing');
+                }).catch(function(err) {
+                    console.warn('Audio playback failed:', err);
+                });
+            }
+        }
+        return false;
+    };
+}
+
+/**
+ * Intercept clicks on audio hotspots to play sound instead of navigating.
+ * Uses a MutationObserver to catch hotspots as soon as Pannellum creates them,
+ * since Pannellum may set onclick after the 'load' event.
+ */
+function interceptAudioHotspots() {
+    var panorama = document.getElementById('panorama');
+    if (!panorama) return;
+
+    // Wrap any existing audio hotspots
+    panorama.querySelectorAll('.audio-hotspot').forEach(wrapAudioHotspot);
+
+    // Watch for new ones (scene changes, etc.)
+    if (!panorama.dataset.audioObserver) {
+        panorama.dataset.audioObserver = '1';
+        var observer = new MutationObserver(function(mutations) {
+            for (var m = 0; m < mutations.length; m++) {
+                var addedNodes = mutations[m].addedNodes;
+                for (var n = 0; n < addedNodes.length; n++) {
+                    var node = addedNodes[n];
+                    if (node.nodeType === 1) {
+                        if (node.classList && node.classList.contains('audio-hotspot')) {
+                            wrapAudioHotspot(node);
+                        }
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll('.audio-hotspot').forEach(wrapAudioHotspot);
+                        }
+                    }
+                }
+            }
+        });
+        observer.observe(panorama, { childList: true, subtree: true });
+    }
+
+    // Remove playing class when audio ends
+    audioPlayer.onended = function() {
+        document.querySelectorAll('.audio-hotspot.playing').forEach(function(el) {
+            el.classList.remove('playing');
+        });
+    };
+}
+
+// ── Video Hotspot Support ───────────────────────────────────────────────────
+
+const videoOverlay = document.getElementById('video-overlay');
+const videoPlayer = document.getElementById('video-overlay-player');
+const videoClose = document.getElementById('video-overlay-close');
+
+/** Detect YouTube URL and return embed URL, or null if not YouTube */
+function youtubeEmbedUrl(url) {
+    var m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return m ? 'https://www.youtube.com/embed/' + m[1] + '?autoplay=1' : null;
+}
+
+function showVideoOverlay(videoUrl) {
+    videoPlayer.innerHTML = '';
+    var ytEmbed = youtubeEmbedUrl(videoUrl);
+    if (ytEmbed) {
+        // YouTube: use iframe embed
+        var iframe = document.createElement('iframe');
+        iframe.src = ytEmbed;
+        iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;';
+        iframe.allow = 'autoplay; encrypted-media';
+        iframe.allowFullscreen = true;
+        videoPlayer.appendChild(iframe);
+    } else {
+        // Commons or direct video: use <video> tag
+        var video = document.createElement('video');
+        video.src = videoUrl;
+        video.controls = true;
+        video.autoplay = true;
+        video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+        videoPlayer.appendChild(video);
+    }
+    videoOverlay.style.display = 'flex';
+}
+
+function hideVideoOverlay() {
+    videoOverlay.style.display = 'none';
+    videoPlayer.innerHTML = '';
+}
+
+// Close button, backdrop click, Escape key
+videoClose.addEventListener('click', hideVideoOverlay);
+videoOverlay.addEventListener('click', function(e) {
+    if (e.target === videoOverlay) hideVideoOverlay();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && videoOverlay.style.display === 'flex') hideVideoOverlay();
+});
+
+function wrapVideoHotspot(el) {
+    if (el.dataset.videoWrapped) return;
+    el.dataset.videoWrapped = '1';
+
+    var sceneId = currentScene;
+    var scene = tourData && tourData.scenes && tourData.scenes[sceneId];
+    var videoUrls = [];
+    if (scene && scene.hotSpots) {
+        for (var i = 0; i < scene.hotSpots.length; i++) {
+            if (scene.hotSpots[i].hotspotSubtype === 'video' && scene.hotSpots[i].videoUrl) {
+                videoUrls.push(scene.hotSpots[i].videoUrl);
+            }
+        }
+    }
+
+    var allVideo = document.querySelectorAll('.video-hotspot');
+    var domIdx = Array.prototype.indexOf.call(allVideo, el);
+    var rawUrl = videoUrls[domIdx] || null;
+
+    // Pre-resolve Commons File: references (also handles Commons page URLs via server)
+    if (rawUrl) {
+        var fileMatch = rawUrl.match(/(?:^File:|commons\.wikimedia\.org\/wiki\/File:)\s*(.+)$/i);
+        if (fileMatch) {
+            fetch('/api/resolve?file=' + encodeURIComponent(fileMatch[1].trim()))
+                .then(function(r) { return r.json(); })
+                .then(function(data) { el.dataset.resolvedVideoUrl = data.original || data.url; })
+                .catch(function() {});
+        }
+    }
+
+    el.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var playUrl = el.dataset.resolvedVideoUrl || rawUrl;
+        if (playUrl) showVideoOverlay(playUrl);
+        return false;
+    };
+}
+
+function interceptVideoHotspots() {
+    var panorama = document.getElementById('panorama');
+    if (!panorama) return;
+    panorama.querySelectorAll('.video-hotspot').forEach(wrapVideoHotspot);
+    if (!panorama.dataset.videoObserver) {
+        panorama.dataset.videoObserver = '1';
+        var observer = new MutationObserver(function(mutations) {
+            for (var m = 0; m < mutations.length; m++) {
+                var addedNodes = mutations[m].addedNodes;
+                for (var n = 0; n < addedNodes.length; n++) {
+                    var node = addedNodes[n];
+                    if (node.nodeType === 1) {
+                        if (node.classList && node.classList.contains('video-hotspot')) {
+                            wrapVideoHotspot(node);
+                        }
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll('.video-hotspot').forEach(wrapVideoHotspot);
+                        }
+                    }
+                }
+            }
+        });
+        observer.observe(panorama, { childList: true, subtree: true });
     }
 }
 
@@ -454,18 +772,28 @@ function wikipediaCardTooltip(hotSpotDiv, args) {
 }
 
 function enrichHotspots(scenes) {
-    // Add Wikipedia card tooltips to hotspots with Wikipedia URLs
+    // Add Wikipedia card tooltips and audio click handlers to hotspots
     for (var sceneId in scenes) {
         var scene = scenes[sceneId];
         if (!scene.hotSpots) continue;
         for (var i = 0; i < scene.hotSpots.length; i++) {
             var hs = scene.hotSpots[i];
+            // Wikipedia card tooltips
             if (hs.URL && isWikipediaUrl(hs.URL)) {
                 var title = extractWikipediaTitle(hs.URL);
                 if (title) {
                     hs.createTooltipFunc = wikipediaCardTooltip;
                     hs.createTooltipArgs = { title: title, url: hs.URL };
                 }
+            }
+            // Audio hotspots: add cssClass for CSS styling. The onclick interception
+            // in interceptAudioHotspots() reads audioUrl directly from tourData by index.
+            if (hs.hotspotSubtype === 'audio' && hs.audioUrl) {
+                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + 'audio-hotspot';
+            }
+            // Video hotspots: add cssClass for CSS styling + onclick overlay
+            if (hs.hotspotSubtype === 'video' && hs.videoUrl) {
+                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + 'video-hotspot';
             }
         }
     }
@@ -505,8 +833,12 @@ function loadPreviewConfig(config) {
     viewer.on('scenechange', function(sceneId) {
         currentScene = sceneId;
         renderSceneList();
+        interceptAudioHotspots();
+                interceptVideoHotspots();
     });
     viewer.on('load', function() {
+        interceptAudioHotspots();
+                interceptVideoHotspots();
         setStatus('Preview loaded \u2713', 'ok');
     });
     viewer.on('error', function(err) {
@@ -592,8 +924,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     viewer.on('scenechange', function(sceneId) {
                         currentScene = sceneId;
                         renderSceneList();
+                        interceptAudioHotspots();
+                interceptVideoHotspots();
                     });
                     viewer.on('load', function() {
+                        interceptAudioHotspots();
+                interceptVideoHotspots();
                         setStatus('Preview loaded \u2713', 'ok');
                     });
                     viewer.on('error', function(err) {

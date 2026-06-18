@@ -70,6 +70,8 @@ node tour_server.mjs
 npx playwright test --project=chromium  # Requires @playwright/test installed
 ```
 
+**Before editing**: Read `CAVEATS.md` — 8 gotchas from hard-won debugging sessions.
+
 ## Project Structure
 
 ```
@@ -85,6 +87,7 @@ photospheres/
 ├── PRD.md                  # Product requirements
 ├── DEVELOPMENT.md          # Build status + roadmap
 ├── DEBUGGING.md            # Visual debugging with playwright-cli
+├── CAVEATS.md              # Gotchas & lessons learned (read before touching hotspot CSS or paths)
 ├── HANDOVER.md             # Session handover notes
 ├── tests/                  # Playwright test suite
 │   └── studio-behaviors.spec.js  # Studio interaction behavior tests

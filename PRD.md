@@ -30,6 +30,20 @@ Enable Wikimedians to **collaboratively define 360° photosphere tours** by stor
 
 ### 1.4 Phase 2 Success Criteria (Studio Behaviors)
 
+#### SC-2.0: Viewport Stability During Editing (Overarching Principle)
+**No editing operation shall disturb the current viewport position.** The viewport's pitch, yaw, and hfov must remain unchanged across all editing actions — adding, editing, or deleting hotspots; changing properties; or any other operation that triggers a viewer reload. The user's current view is part of their editing context and must be preserved.
+
+**Rationale**: Every editing action that resets the viewport forces the user to re-navigate to find their place. This is disorienting and breaks the editing flow. The viewport position is part of the editing state, not just a viewing state.
+
+**Verification**: After any hotspot add/edit/delete operation, `getPitch()`, `getYaw()`, and `getHfov()` must match their pre-operation values.
+
+#### SC-2.3: Canonical Media References
+All media references (images, audio, and any future media types) stored in exported tour JSON must use **canonical direct URLs**, never wiki page references or `File:` prefixes. Commons `File:` references entered by the user must be resolved to their direct upload URL (e.g., `https://upload.wikimedia.org/wikipedia/commons/...`) before storage. This applies equally to panorama images, audio files, and any future media types.
+
+**Rationale**: Wiki references (`File:Sound.ogg`) are not playable by browsers without resolution. Inconsistent storage (images as URLs, audio as `File:`) creates confusion and requires redundant resolution logic in every consumer. Canonical URLs work everywhere without additional resolution.
+
+**Verification**: Export a tour containing audio hotspots entered as `File:` references. The exported JSON must contain fully-resolved `https://upload.wikimedia.org/...` URLs in both `panorama` and `audioUrl` fields.
+
 #### SC-2.1: Hotspot Click → Edit Modal (No Viewport Reset)
 When editing a tour in the Studio, clicking a hotspot node in the 360° viewport opens the edit modal **without** navigating away from or resetting the current view. The viewport stays at exactly the same position (pitch, yaw, hfov) where the user clicked.
 
@@ -378,6 +392,11 @@ Returns the direct upload URL and a 4096px thumbnail URL.
 | T11 | Click hotspot card in right panel | Viewport smoothly pans to face that hotspot (SC-2.2) |
 | T12 | Click ✎ pencil on hotspot card | Edit modal opens; viewport does NOT move (SC-2.2) |
 | T13 | Click × delete on hotspot card | Hotspot deleted; viewport does NOT move (SC-2.2) |
+| T14 | Add hotspot via modal → confirm | Viewport stays at captured position, does not reset to default (SC-2.0) |
+| T15 | Edit existing hotspot via modal → save | Viewport stays at current position (SC-2.0) |
+| T16 | Delete hotspot via right panel | Viewport stays at current position (SC-2.0) |
+| T17 | Add audio hotspot with `File:Sound.ogg` → export | Exported JSON contains resolved `https://upload.wikimedia.org/...` URL (SC-2.3) |
+| T18 | Add audio hotspot with direct URL → export | Exported JSON contains the direct URL unchanged (SC-2.3) |
 
 ### 6.2 Test Tour
 
