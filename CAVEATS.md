@@ -31,28 +31,48 @@ Hard-won lessons from debugging this project. Read before touching hotspot CSS, 
 6. Add it to `renderHotspotList()` (UI badge)
 7. Add it to viewer's `enrichHotspots()` (CSS class + behavior)
 
+**Example: `iconStyle` field** — added in all 7 locations to support small/normal/large/huge icon size variants.
+
 **This list is alive** — add new checkpoints as the codebase evolves.
 
 ---
 
-## 1. Pannellum: Hotspot Elements Live in Unexpected Containers
+## 1. Pannellum: All Hotspots Use Custom CSS Icons
 
-Pannellum 2.5.7 renders different hotspot types in **different DOM containers**. Do not assume all hotspot elements are children of `.pnlm-hotspot-base` or the `#panorama` div.
+**All hotspot types now use `cssClass` with custom CSS styling.** The viewer no longer relies on Pannellum's default sprites for scene/info hotspots — we provide our own icons via CSS `::after` pseudo-elements.
 
-| Hotspot type | Location of visible icon | Notes |
-|---|---|---|
-| Scene (arrow ➤) | `.pnlm-render-container` | Separate from `.pnlm-hotspot-base`, inline `visibility:hidden`, must be forced visible |
-| Info (ⓘ) | `.pnlm-hotspot-base > .pnlm-hotspot.pnlm-sprite` | Child of base div |
-| Audio/video (custom) | `.pnlm-hotspot-base` (via CSS `::after`) | Custom styling replaces Pannellum sprite |
+### Why this works
 
-**Lesson from the invisible scene icon**: The scene sprite had correct classes (`pnlm-hotspot pnlm-sprite pnlm-scene`) and size (26×26px) but `visibility:hidden` inline and no positioning. It was in `.pnlm-render-container` — 4 levels away from where all the other hotspot elements lived. `createTooltipFunc` couldn't fix it because it passes the base div, not the render container sprite. A 200ms delayed `querySelectorAll('.pnlm-render-container .pnlm-scene')` with `el.style.visibility = 'visible'` after scene load was needed.
+Pannellum's default sprites are small (26×26px) and inconsistent across types. Our custom CSS:
+- Uses larger circles (44-50px) for better visibility
+- Provides consistent emoji icons via `::after` content
+- Supports size variants (small/normal/large/huge) via `iconStyle`
+- Applies pulsing glow animations for visual feedback
 
-**Debugging checklist for invisible Pannellum elements**:
-1. Check all containers: `#panorama`, `.pnlm-render-container`, `.pnlm-ui`
-2. Check `computedStyle` — visibility, display, opacity, width, height
-3. Check inline styles — Pannellum sets `style.visibility` directly
-4. Check after `setTimeout` — Pannellum may update after your handler
-5. Search for the CSS class globally (`document.querySelectorAll('.my-class')`), not just in the expected parent
+### The `cssClass` Pattern
+
+```javascript
+// enrichHotspots sets cssClass for ALL types:
+hs.cssClass = tagClass + sizeClass;  // e.g. "scene-hotspot icon-large"
+```
+
+The CSS uses `::after` to overlay the icon on top of Pannellum's default sprite, then hides the sprite:
+
+```css
+.scene-hotspot {
+    background: #e94560 !important;  /* Replace sprite */
+}
+.scene-hotspot::after {
+    content: '➤';  /* Overlay icon */
+}
+.scene-hotspot.pnlm-sprite {
+    background-image: none !important;  /* Hide default */
+}
+```
+
+### Historical Note
+
+Previously, setting `cssClass` on scene/info hotspots prevented Pannellum from creating the default sprite child, making icons invisible. This caveat only applied when **relying on Pannellum's sprites**. With custom CSS providing the icons, `cssClass` is required for all types.
 
 ---
 

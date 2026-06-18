@@ -70,7 +70,7 @@ node tour_server.mjs
 npx playwright test --project=chromium  # Requires @playwright/test installed
 ```
 
-**Before editing**: Read `CAVEATS.md` — 8 gotchas from hard-won debugging sessions.
+**Before editing**: Read `CAVEATS.md` — gotchas from hard-won debugging sessions.
 
 ## Project Structure
 
@@ -126,11 +126,20 @@ panorama = "File:My_Photo.jpg"
   "scenes": {
     "museum": {
       "panorama": "File:My_Photo.jpg",
-      "hotSpots": [{ "pitch": -17.35, "yaw": 33.77, "type": "scene", "sceneId": "street" }]
+      "hotSpots": [{
+        "pitch": -17.35,
+        "yaw": 33.77,
+        "type": "scene",
+        "sceneId": "street",
+        "text": "Go outside",
+        "iconStyle": "large"
+      }]
     }
   }
 }
 ```
+
+**Hotspot icon sizes**: Optional `iconStyle` field with values: `normal` (default), `small`, `large`, `huge`.
 
 ## Roadmap
 

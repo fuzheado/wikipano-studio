@@ -239,7 +239,9 @@ async function loadSceneIntoViewport(id, viewOverride) {
             scene.hotSpots.forEach(hs => {
                 const subtype = hs.hotspotSubtype || (hs.type === 'scene' ? 'scene' : 'info');
                 const typeClass = subtype === 'scene' ? 'studio-scene-hs' : subtype === 'audio' ? 'studio-audio-hs' : subtype === 'video' ? 'studio-video-hs' : 'studio-info-hs';
-                const hsClass = 'studio-hotspot ' + typeClass;
+                // Add icon size class if specified
+                const sizeClass = hs.iconStyle ? ` icon-${hs.iconStyle}` : '';
+                const hsClass = 'studio-hotspot ' + typeClass + sizeClass;
                 try {
                     state.pannellumViewer.addHotSpot({
                         pitch: hs.pitch,
@@ -481,6 +483,7 @@ function addHotspot() {
     $('modal-hs-url').value = '';
     $('modal-hs-audio').value = '';
     $('modal-hs-video').value = '';
+    $('modal-hs-icon-style').value = 'normal';
     $('modal-hs-type').value = 'scene';
 
     // Populate target scene dropdown
@@ -504,6 +507,7 @@ function editHotspot(sceneId, index) {
     $('modal-hs-url').value = hs.URL || '';
     $('modal-hs-audio').value = hs.audioUrl || '';
     $('modal-hs-video').value = hs.videoUrl || '';
+    $('modal-hs-icon-style').value = hs.iconStyle || 'normal';
     // Detect subtype: use hotspotSubtype if present, otherwise fall back to Pannellum type
     $('modal-hs-type').value = hs.hotspotSubtype || hs.type || 'info';
 
@@ -623,6 +627,12 @@ async function confirmAddHotspot() {
         if (url) hs.URL = url;
     }
 
+    // Store icon style if not 'normal' (the default)
+    const iconStyle = $('modal-hs-icon-style').value;
+    if (iconStyle && iconStyle !== 'normal') {
+        hs.iconStyle = iconStyle;
+    }
+
     // Add or update
     if (state.editingHotspotIndex !== null) {
         state.scenes[sceneId].hotSpots[state.editingHotspotIndex] = hs;
@@ -699,6 +709,7 @@ function importTourData(data) {
                     hotspotSubtype: hs.hotspotSubtype || undefined,
                     audioUrl: hs.audioUrl || undefined,
                     videoUrl: hs.videoUrl || undefined,
+                    iconStyle: hs.iconStyle || undefined,
                 })),
             };
             state.sceneOrder.push(id);
@@ -896,6 +907,7 @@ async function exportTour() {
                 if (hs.hotspotSubtype) h.hotspotSubtype = hs.hotspotSubtype;
                 if (hs.audioUrl) h.audioUrl = hs.audioUrl;
                 if (hs.videoUrl) h.videoUrl = hs.videoUrl;
+                if (hs.iconStyle) h.iconStyle = hs.iconStyle;
                 return h;
             }),
         };
@@ -991,6 +1003,7 @@ async function previewTour() {
                 if (hs.hotspotSubtype) out.hotspotSubtype = hs.hotspotSubtype;
                 if (hs.audioUrl) out.audioUrl = hs.audioUrl;
                 if (hs.videoUrl) out.videoUrl = hs.videoUrl;
+                if (hs.iconStyle) out.iconStyle = hs.iconStyle;
                 return out;
             }),
         };

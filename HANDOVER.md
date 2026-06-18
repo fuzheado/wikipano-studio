@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-18 (updated)
-**Session**: Default view capture for scenes, hotspot repositioning via "Set to Current View"
+**Session**: Icon consistency between Studio/Viewer, icon size variants (`iconStyle`)
 
 ---
 
@@ -21,21 +21,23 @@
 | JSON validator (`--fix`) | ✅ |
 | Integrity checks at all boundaries | ✅ |
 | Scene thumbnails (Studio + Viewer) | ✅ |
-| **Set default view for scene** | ✅ |
-| **Hotspot repositioning (Set to Current View)** | ✅ |
+| Set default view for scene | ✅ |
+| Hotspot repositioning (Set to Current View) | ✅ |
+| **Icon consistency (Studio = Viewer)** | ✅ |
+| **Icon size variants (`iconStyle`)** | ✅ |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
 - **Export vs Preview**: Export uses `_original` (canonical Commons URLs), Preview uses `/images/` (same-origin cached)
-- **Pannellum 2.5.7**: `.pnlm-hotspot-base` (not `.pnlm-hotspot`). Scene sprites in `.pnlm-render-container`.
-- **Class tagging**: `createTooltipFunc` → `div.classList.add()`. Never `cssClass` for scene/info.
+- **Pannellum 2.5.7**: All hotspots now use `cssClass` with custom CSS `::after` for icons
+- **Class tagging**: `cssClass` set for ALL hotspot types (scene/info/audio/video/wp-card-hotspot)
 - **5-step rule**: Every new field must touch storage, import, export, preview, validation.
 
 ### Pannellum 2.5.7 Gotchas
-1. Scene sprites live in `.pnlm-render-container`, `visibility:hidden` — force visible with 200ms delay
-2. `cssClass` on config prevents default sprite child creation
+1. All hotspots use `cssClass` + custom CSS with `::after` for icons (no longer rely on Pannellum sprites)
+2. `transform` in CSS keyframes overrides Pannellum's inline positioning — use `box-shadow`/`opacity` instead
 3. Literal `<script>` in HTML comments breaks the page
-4. `transform` in CSS keyframes overrides Pannellum's inline positioning
+4. `::after` pseudo-element overlays icon on top of any child elements (works with Wikipedia cards)
 
 ### Roadmap
 - **Phase 2.5**: Toolforge deployment (`wikipano`), `{{PanoTour}}` template, OAuth save-to-wiki
@@ -88,10 +90,12 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - Purple ▶️ icons for video hotspots (popup overlay player — Commons + YouTube)
 - Green 🎵 icons for audio hotspots (pulsing glow, plays Commons sound files in viewer)
 - Red ➤ icons for scene links, blue ⓘ for info hotspots (pulsing, glowing)
+- **Icon consistency**: Studio and Viewer use identical CSS for all hotspot icons (44-50px circles with emoji)
+- **Icon size variants**: `iconStyle` field with options: `normal`, `small` (32px), `large` (60px), `huge` (80px)
 - `?scene=` URL parameter: direct-link to a specific scene for editing; URL stays in sync
 - Viewport position preserved across all editing operations (add/edit/delete hotspots)
-- **Set as Default View**: Capture current viewport as scene's default yaw/pitch/hfov (button in properties panel)
-- **Set to Current View**: Reposition hotspots by navigating to desired spot and clicking button in edit modal
+- Set as Default View: Capture current viewport as scene's default yaw/pitch/hfov (button in properties panel)
+- Set to Current View: Reposition hotspots by navigating to desired spot and clicking button in edit modal
 
 ### Server (`tour_server.mjs`)
 - Zero external dependencies (Node.js built-ins only)
@@ -332,6 +336,20 @@ Not needed:
 ## Future (Phase 3)
 
 - Evaluate Photo-Sphere-Viewer migration for GPS, maps, gallery plugins
-- Custom hotspot icons via `cssClass` in studio
 - Tour discovery: category system, featured tours
 - Multilingual support
+- Custom icon themes (beyond size variants)
+
+### Icon Consistency + Size Variants (2026-06-18)
+- **Problem**: Studio used custom CSS icons (large circles with emoji), Viewer relied on Pannellum's small native sprites for scene/info — inconsistent appearance
+- **Solution**: Both now use identical custom CSS for ALL hotspot types:
+  - Scene: 50px red circle with ➤
+  - Info: 44px blue circle with ⓘ
+  - Audio: 44px green circle with 🎵
+  - Video: 48px purple circle with ▶️
+- **New feature**: `iconStyle` field on hotspots with values: `normal` (default), `small`, `large`, `huge`
+- **Implementation**: `iconStyle` follows the 5-step rule (storage, import, export, preview, validation)
+- **CSS pattern**: `.studio-hotspot.icon-large`, `.info-hotspot.icon-huge`, etc.
+- **CAVEATS.md updated**: Section 1 now documents custom CSS approach instead of Pannellum sprite reliance
+- Fixed Wikipedia card hotspots to use `wp-card-hotspot` class with matching styling
+- Removed old caveat about `cssClass` preventing sprite creation — no longer relevant since we provide our own icons via `::after`

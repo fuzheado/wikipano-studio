@@ -195,6 +195,37 @@ body {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
 }
+
+/* ── Icon Size Variants ───────────────────────── */
+/* Normal (default): base sizes defined per type */
+
+/* Small: compact for dense areas */
+.studio-hotspot.icon-small {
+    height: 32px !important;
+    width: 32px !important;
+}
+.studio-hotspot.icon-small::after {
+    font-size: 14px !important;
+}
+
+/* Large: more prominent */
+.studio-hotspot.icon-large {
+    height: 60px !important;
+    width: 60px !important;
+}
+.studio-hotspot.icon-large::after {
+    font-size: 26px !important;
+}
+
+/* Huge: hero/attention hotspots */
+.studio-hotspot.icon-huge {
+    height: 80px !important;
+    width: 80px !important;
+}
+.studio-hotspot.icon-huge::after {
+    font-size: 34px !important;
+}
+
 /* Scene link: arrow/navigation style */
 .studio-scene-hs {
     height: 50px !important;
@@ -218,8 +249,8 @@ body {
 }
 /* Info hotspot: circle dot style */
 .studio-info-hs {
-    height: 40px !important;
-    width: 40px !important;
+    height: 44px !important;
+    width: 44px !important;
     background: #5bc0de !important;
     border-radius: 50% !important;
     border: 3px solid #fff !important;
@@ -232,7 +263,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
     color: #fff;
     line-height: 1;
@@ -453,6 +484,13 @@ body {
             <option value="info">Info (tooltip + optional URL)</option>
             <option value="audio">Audio 🎵 (play a sound)</option>
             <option value="video">Video 🎬 (popup player)</option>
+        </select>
+        <label style="margin-top:12px;">Icon Size</label>
+        <select id="modal-hs-icon-style">
+            <option value="normal">Normal (default)</option>
+            <option value="small">Small (compact for dense areas)</option>
+            <option value="large">Large (more prominent)</option>
+            <option value="huge">Huge (hero/attention hotspot)</option>
         </select>
         <label style="margin-top:12px;">Hover Text</label>
         <input type="text" id="modal-hs-text" placeholder="Text shown on hover">

@@ -146,6 +146,24 @@
             background: var(--highlight);
             flex-shrink: 0;
         }
+        /* Scene list thumbnails */
+        .scene-list li .thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            flex-shrink: 0;
+            background-color: rgba(255,255,255,0.05);
+        }
+        .scene-list li .name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
         /* Tour info */
         .tour-info {
@@ -237,6 +255,148 @@
             justify-content: center; z-index: 101; line-height: 1;
         }
         .info-popup-close:hover { background: rgba(233,69,96,0.8); }
+
+        /* ── Icon Size Variants (viewer) ─────────────────── */
+        /* Normal (default): base sizes defined per type */
+
+        /* Small: compact for dense areas */
+        .scene-hotspot.icon-small,
+        .info-hotspot.icon-small,
+        .audio-hotspot.icon-small,
+        .video-hotspot.icon-small,
+        .wp-card-hotspot.icon-small {
+            height: 32px !important;
+            width: 32px !important;
+        }
+        .scene-hotspot.icon-small::after,
+        .info-hotspot.icon-small::after,
+        .audio-hotspot.icon-small::after,
+        .video-hotspot.icon-small::after,
+        .wp-card-hotspot.icon-small::after {
+            font-size: 14px !important;
+        }
+
+        /* Large: more prominent */
+        .scene-hotspot.icon-large,
+        .info-hotspot.icon-large,
+        .audio-hotspot.icon-large,
+        .video-hotspot.icon-large,
+        .wp-card-hotspot.icon-large {
+            height: 60px !important;
+            width: 60px !important;
+        }
+        .scene-hotspot.icon-large::after,
+        .info-hotspot.icon-large::after,
+        .audio-hotspot.icon-large::after,
+        .video-hotspot.icon-large::after,
+        .wp-card-hotspot.icon-large::after {
+            font-size: 26px !important;
+        }
+
+        /* Huge: hero/attention hotspots */
+        .scene-hotspot.icon-huge,
+        .info-hotspot.icon-huge,
+        .audio-hotspot.icon-huge,
+        .video-hotspot.icon-huge,
+        .wp-card-hotspot.icon-huge {
+            height: 80px !important;
+            width: 80px !important;
+        }
+        .scene-hotspot.icon-huge::after,
+        .info-hotspot.icon-huge::after,
+        .audio-hotspot.icon-huge::after,
+        .video-hotspot.icon-huge::after,
+        .wp-card-hotspot.icon-huge::after {
+            font-size: 34px !important;
+        }
+
+        /* Scene hotspot: red arrow (matching studio) */
+        .scene-hotspot {
+            height: 50px !important;
+            width: 50px !important;
+            background: #e94560 !important;
+            border-radius: 50% !important;
+            border: 3px solid #fff !important;
+            box-shadow: 0 0 18px rgba(233, 69, 96, 0.8), 0 0 40px rgba(233, 69, 96, 0.3) !important;
+            animation: scene-pulse 2s ease-in-out infinite;
+        }
+        .scene-hotspot::after {
+            content: '➤';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fff;
+            line-height: 1;
+            z-index: 999;
+        }
+        .scene-hotspot.pnlm-sprite {
+            background-image: none !important;
+        }
+        @keyframes scene-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Info hotspot: blue circle with ⓘ (matching studio) */
+        .info-hotspot {
+            height: 44px !important;
+            width: 44px !important;
+            background: #5bc0de !important;
+            border-radius: 50% !important;
+            border: 3px solid #fff !important;
+            box-shadow: 0 0 18px rgba(91, 192, 222, 0.8), 0 0 40px rgba(91, 192, 222, 0.3) !important;
+            animation: info-pulse 2s ease-in-out infinite;
+        }
+        .info-hotspot::after {
+            content: 'ⓘ';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #fff;
+            line-height: 1;
+            z-index: 999;
+        }
+        .info-hotspot.pnlm-sprite {
+            background-image: none !important;
+        }
+        @keyframes info-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Wikipedia card hotspot: same as info-hotspot (blue ⓘ) */
+        .wp-card-hotspot {
+            height: 44px !important;
+            width: 44px !important;
+            background: #5bc0de !important;
+            border-radius: 50% !important;
+            border: 3px solid #fff !important;
+            box-shadow: 0 0 18px rgba(91, 192, 222, 0.8), 0 0 40px rgba(91, 192, 222, 0.3) !important;
+            animation: info-pulse 2s ease-in-out infinite;
+        }
+        .wp-card-hotspot::after {
+            content: 'ⓘ';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #fff;
+            line-height: 1;
+            z-index: 999;
+        }
+        .wp-card-hotspot.pnlm-sprite {
+            background-image: none !important;
+        }
 
         /* Audio hotspot: styled like the studio's green 🎵 icon */
         .audio-hotspot {
@@ -400,9 +560,15 @@ function renderSceneList() {
 
     list.innerHTML = Object.entries(tourData.scenes).map(([id, scene]) => {
         const active = id === currentScene ? ' class="active"' : '';
+        // Use panorama path for thumbnail (browser scales via CSS background-size:cover)
+        const pano = scene.panorama || '';
+        const thumb = pano.startsWith('/images/') ? pano : '';
+        const thumbSpan = thumb
+            ? `<span class="thumb" style="background-image:url('${escapeHTML(thumb)}')"></span>`
+            : `<span class="thumb"></span>`;
         return `<li${active} onclick="switchToScene('${escapeHTML(id)}')">
-            <span class="dot"></span>
-            ${escapeHTML(scene.title || id)}
+            ${thumbSpan}
+            <span class="name">${escapeHTML(scene.title || id)}</span>
         </li>`;
     }).join('');
 }
@@ -808,7 +974,8 @@ function enrichHotspots(scenes) {
             } else if (hs.hotspotSubtype === 'video') {
                 tagClass = 'video-hotspot';
             } else if (hs.URL && isWikipediaUrl(hs.URL)) {
-                // Wikipedia cards: wikipediaCardTooltip adds wp-card-hotspot
+                // Wikipedia cards: use wp-card-hotspot class for consistent styling
+                tagClass = 'wp-card-hotspot';
                 var title = extractWikipediaTitle(hs.URL);
                 if (title) {
                     hs.createTooltipFunc = wikipediaCardTooltip;
@@ -817,20 +984,26 @@ function enrichHotspots(scenes) {
             } else if (hs.type === 'info') {
                 tagClass = 'info-hotspot';
             }
-            // Stamp the tag class via a lightweight tooltip function
+
+            // Add icon size class if specified
+            var sizeClass = '';
+            if (hs.iconStyle && hs.iconStyle !== 'normal') {
+                sizeClass = ' icon-' + hs.iconStyle;
+            }
+
+            // Set cssClass for all types now — we use custom CSS with ::after for icons
+            // instead of relying on Pannellum's default sprites.
+            if (tagClass) {
+                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + tagClass + sizeClass;
+            }
+
+            // Also stamp the tag class via createTooltipFunc for types that need
+            // special behavior (Wikipedia cards, etc.)
             if (tagClass && !hs.createTooltipFunc) {
                 hs.createTooltipFunc = (function(cls) {
                     return function(div) { div.classList.add(cls); };
                 })(tagClass);
                 hs.createTooltipArgs = {};
-            }
-            // Only set cssClass for audio/video — these have custom CSS that replaces
-            // Pannellum's default sprite. For scene/info, let Pannellum create the default
-            // sprite child (pnlm-scene / pnlm-info) which provides the icon.
-            // Setting cssClass for scene/info PREVENTS Pannellum from creating the sprite
-            // child, which makes the icon invisible.
-            if (tagClass === 'audio-hotspot' || tagClass === 'video-hotspot') {
-                hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + tagClass;
             }
         }
     }
