@@ -125,7 +125,10 @@ photospheres/
 - [x] Video hotspot (🎬) — popup overlay player supporting Commons files and YouTube embeds
 - [x] Info popup click-to-toggle — hidden by default, click to show/dismiss, × button, Show All toggle
 - [x] `&open=0,2` URL parameter — auto-open info popups at specified hotspot indices
-- [x] CAVEATS.md — 14 gotchas (transform, paths, yaw, viewport, enrichHotspots paths, DOM order, ...)
+- [x] Scene hotspot icon fix — force .pnlm-render-container .pnlm-scene to visible (Pannellum 2.5.7 quirk)
+- [x] Integrity checks at all data boundaries — validateHotspot() + validateTour() at add/edit/import/export/preview
+- [x] 5-step rule for new hotspot fields: storage, import, export, preview, validation
+- [x] CAVEATS.md — 15 gotchas (transform, paths, yaw, container hunting, enrichHotspots, DOM order, ...)
 
 ### Phase 2.5: New Toolforge Tool Deployment (2026-06-17)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.

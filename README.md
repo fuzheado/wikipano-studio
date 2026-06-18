@@ -88,7 +88,7 @@ photospheres/
 ├── DEVELOPMENT.md          # Build status + roadmap
 ├── DEBUGGING.md            # Visual debugging with playwright-cli
 ├── CAVEATS.md              # Gotchas & lessons learned (read before touching hotspot CSS or paths)
-├── HANDOVER.md             # Session handover notes
+├── HANDOVER.md             # Session log + current-state quick reference
 ├── tests/                  # Playwright test suite
 │   └── studio-behaviors.spec.js  # Studio interaction behavior tests
 ├── playwright.config.js    # Playwright configuration

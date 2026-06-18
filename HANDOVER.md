@@ -1,7 +1,51 @@
 # Handover Document - Wikimedia Photosphere Tours
 
-**Date**: 2026-06-17 (updated)
-**Session**: Phase 2 bug fixes (export scope, panorama paths, yaw normalization), Pannellum JSON Schema validator
+**Date**: 2026-06-18 (updated)
+**Session**: Scene icon fix, video export/import fixes, integrity check system, handoff
+
+---
+
+## Current State (Quick Reference)
+
+| Feature | Status |
+|---|---|
+| Scene link nav + icon | ✅ |
+| Info click-to-toggle + Show All | ✅ |
+| `&open=0,2` URL param | ✅ |
+| Audio 🎵 + Video 🎬 | ✅ |
+| Export (all/current, _original URLs) | ✅ |
+| Import/Export preserve videoUrl | ✅ |
+| Yaw normalization [-180,180] | ✅ |
+| Viewport preservation on edit | ✅ |
+| `?scene=` URL param | ✅ |
+| JSON validator (`--fix`) | ✅ |
+| Integrity checks at all boundaries | ✅ |
+
+### Architecture Quick Notes
+- **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
+- **Export vs Preview**: Export uses `_original` (canonical Commons URLs), Preview uses `/images/` (same-origin cached)
+- **Pannellum 2.5.7**: `.pnlm-hotspot-base` (not `.pnlm-hotspot`). Scene sprites in `.pnlm-render-container`.
+- **Class tagging**: `createTooltipFunc` → `div.classList.add()`. Never `cssClass` for scene/info.
+- **5-step rule**: Every new field must touch storage, import, export, preview, validation.
+
+### Pannellum 2.5.7 Gotchas
+1. Scene sprites live in `.pnlm-render-container`, `visibility:hidden` — force visible with 200ms delay
+2. `cssClass` on config prevents default sprite child creation
+3. Literal `<script>` in HTML comments breaks the page
+4. `transform` in CSS keyframes overrides Pannellum's inline positioning
+
+### Roadmap
+- **Phase 2.5**: Toolforge deployment (`wikipano`), `{{PanoTour}}` template, OAuth save-to-wiki
+- **Phase 3**: Auto-popup in field of view, GPS/maps, gallery, multilingual, tour discovery
+
+### Debug Commands
+```bash
+playwright-cli open
+playwright-cli goto http://localhost:8765/tour_viewer.html
+playwright-cli eval "Array.from(document.querySelectorAll('.pnlm-hotspot-base')).map(function(e,i){return i+':kids='+e.children.length+' '+e.className.split(' ').slice(0,3).join('+')}).join('|')"
+playwright-cli eval "var el=document.querySelector('.pnlm-render-container .pnlm-scene');el?('vis='+el.style.visibility):'NONE'"
+playwright-cli console
+```
 
 ---
 
@@ -220,6 +264,21 @@ photospheres/
 ### Documentation: CAVEATS.md (2026-06-17)
 - New file: 9 gotchas from debugging (transform, paths, yaw, viewport, onclick, radio toggle, subtypes, image sources)
 - Pannellum skill updated: "Never Use `transform` in Keyframe Animations" in caveats section
+
+### Scene Icon Fix + Pannellum 2.5.7 Deep Dive (2026-06-18)
+- Scene hotspot arrow icon completely invisible — Pannellum 2.5.7 renders scene sprites in `.pnlm-render-container` (not as children of `.pnlm-hotspot-base`), with `visibility:hidden` inline, never set visible in tour mode with custom `createTooltipFunc`
+- Also found: setting `hs.cssClass` for scene/info hotspots prevented Pannellum from creating the default sprite child
+- Fix: no `cssClass` for scene/info + 200ms delayed `visibility:visible` on `.pnlm-render-container .pnlm-scene`
+- CAVEATS.md §1: "Hotspot Elements Live in Unexpected Containers" with 5-step debugging checklist
+
+### Video Export/Import Fixes (2026-06-18)
+- `videoUrl` silently dropped in both `exportTour()` and `importTourData()` — added to both
+- Test file on Commons had stale video hotspot without `videoUrl` — re-added via studio
+
+### Integrity Check System (2026-06-18)
+- `validateHotspot(hs)` + `validateTour()` at add/edit, import, export, preview
+- 5-step rule: every new field must touch storage, import, export, preview, validation
+- CAVEATS.md §0: "Validate at Every Data Boundary"
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference
