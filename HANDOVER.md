@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-18 (updated)
-**Session**: Icon consistency between Studio/Viewer, icon size variants (`iconStyle`)
+**Session**: Mobile gyroscope toggle, icon consistency, icon size variants
 
 ---
 
@@ -23,8 +23,9 @@
 | Scene thumbnails (Studio + Viewer) | ✅ |
 | Set default view for scene | ✅ |
 | Hotspot repositioning (Set to Current View) | ✅ |
-| **Icon consistency (Studio = Viewer)** | ✅ |
-| **Icon size variants (`iconStyle`)** | ✅ |
+| Icon consistency (Studio = Viewer) | ✅ |
+| Icon size variants (`iconStyle`) | ✅ |
+| **Mobile gyroscope toggle** | ✅ |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
@@ -38,6 +39,7 @@
 2. `transform` in CSS keyframes overrides Pannellum's inline positioning — use `box-shadow`/`opacity` instead
 3. Literal `<script>` in HTML comments breaks the page
 4. `::after` pseudo-element overlays icon on top of any child elements (works with Wikipedia cards)
+5. **Gyroscope requires HTTPS**: Pannellum's `isOrientationSupported()` returns false on `http:` — only works on `https:` (privacy requirement for DeviceOrientationEvent API)
 
 ### Roadmap
 - **Phase 2.5**: Toolforge deployment (`wikipano`), `{{PanoTour}}` template, OAuth save-to-wiki
@@ -75,6 +77,7 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - Loads previews from localStorage: `#preview=local`
 - Wikipedia rich info cards on hotspot hover (fetches lead image + extract from REST API)
 - Handles TOML + JSON formats via server API
+- **Mobile gyroscope toggle**: 🧭 button in footer (only visible on mobile + HTTPS)
 
 ### Visual Studio (`studio.html` + `studio.js`)
 - 360° viewport with click-to-capture coordinates for hotspot placement
@@ -307,6 +310,17 @@ photospheres/
   - Works in both add and edit modes
 - Both features follow Panaedit pattern: navigate → capture → store
 - ~1 hour total implementation (under 1.5-2.5hr estimate)
+
+### Mobile Gyroscope Toggle (2026-06-18)
+- Added 🧭 Gyro button to tour viewer footer
+- Uses Pannellum API: `isOrientationSupported()`, `startOrientation()`, `stopOrientation()`
+- Button only visible on mobile devices (`ontouchstart` or `navigator.maxTouchPoints > 0`)
+- Handles iOS 13+ permission prompt via `DeviceOrientationEvent.requestPermission()`
+- **Key finding**: Pannellum requires HTTPS for gyroscope — `http://localhost` won't work
+  - Source: `DeviceOrientationEvent && "https:" == location.protocol`
+  - Deployed Toolforge (HTTPS) will work correctly
+- Desktop: button hidden (no touch)
+- Test: Playwright confirmed API exists and methods are callable
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference
