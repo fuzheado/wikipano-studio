@@ -479,6 +479,31 @@
             flex-shrink: 0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
+        }
+        
+        /* ── Gyroscope Button ───────────────────────────── */
+        #gyro-btn {
+            background: var(--surface2);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: none; /* Hidden by default, shown on mobile with gyro support */
+            align-items: center;
+            gap: 4px;
+        }
+        #gyro-btn:hover {
+            border-color: var(--highlight);
+        }
+        #gyro-btn.active {
+            background: var(--highlight);
+            border-color: var(--highlight);
+        }
+        #gyro-btn .icon {
+            font-size: 1rem;
         }
 
         /* ── Responsive ─────────────────────────────── */
@@ -523,7 +548,13 @@
 
 <footer>
     <span>Powered by <a href="https://pannellum.org/" target="_blank" style="color:var(--highlight);">Pannellum</a></span>
-    <button id="toggleAllInfoBtn" style="background:var(--surface2);border:1px solid rgba(255,255,255,0.2);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.75rem;">👁 Show all popups</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button id="gyro-btn" title="Toggle device gyroscope control">
+            <span class="icon">🧭</span>
+            <span class="label">Gyro</span>
+        </button>
+        <button id="toggleAllInfoBtn" style="background:var(--surface2);border:1px solid rgba(255,255,255,0.2);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.75rem;">👁 Show all popups</button>
+    </div>
     <span>Tour JSON stored on <a href="https://commons.wikimedia.org/" target="_blank" style="color:var(--highlight);">Wikimedia Commons</a></span>
 </footer>
 
@@ -654,6 +685,7 @@ function loadTour(configUrl) {
                 interceptVideoHotspots();
                 interceptInfoHotspots();
                 openHotspotsFromURL();
+                setupGyroscopeButton();
                 setStatus('Tour loaded successfully \u2713', 'ok');
             });
 
@@ -683,6 +715,77 @@ function switchToScene(sceneId) {
     } catch(e) {
         console.error('Scene switch error:', e);
     }
+}
+
+// ── Gyroscope Support ───────────────────────────────────────────────────
+
+/**
+ * Setup gyroscope toggle button for mobile devices.
+ * Pannellum supports device orientation via startOrientation()/stopOrientation().
+ * iOS 13+ requires a user gesture + permission prompt.
+ */
+function setupGyroscopeButton() {
+    const gyroBtn = document.getElementById('gyro-btn');
+    if (!gyroBtn || !viewer) return;
+    
+    // Check if device orientation is supported
+    if (!viewer.isOrientationSupported()) {
+        gyroBtn.style.display = 'none';
+        return;
+    }
+    
+    // Show the button on mobile devices
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isMobile) {
+        gyroBtn.style.display = 'none';
+        return;
+    }
+    
+    gyroBtn.style.display = 'flex';
+    
+    // Check if orientation is already active (from config orientationOnByDefault)
+    if (viewer.isOrientationActive()) {
+        gyroBtn.classList.add('active');
+        gyroBtn.querySelector('.label').textContent = 'Gyro ON';
+    }
+    
+    // Toggle gyroscope on button click
+    gyroBtn.onclick = function() {
+        if (!viewer) return;
+        
+        if (viewer.isOrientationActive()) {
+            viewer.stopOrientation();
+            gyroBtn.classList.remove('active');
+            gyroBtn.querySelector('.label').textContent = 'Gyro';
+            setStatus('Gyroscope disabled', 'ok');
+        } else {
+            // iOS 13+ requires permission request
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function(permission) {
+                        if (permission === 'granted') {
+                            viewer.startOrientation();
+                            gyroBtn.classList.add('active');
+                            gyroBtn.querySelector('.label').textContent = 'Gyro ON';
+                            setStatus('Gyroscope enabled', 'ok');
+                        } else {
+                            setStatus('Gyroscope permission denied', 'error');
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('Gyroscope permission error:', err);
+                        setStatus('Gyroscope permission error', 'error');
+                    });
+            } else {
+                // Android and older iOS
+                viewer.startOrientation();
+                gyroBtn.classList.add('active');
+                gyroBtn.querySelector('.label').textContent = 'Gyro ON';
+                setStatus('Gyroscope enabled', 'ok');
+            }
+        }
+    };
 }
 
 // ── Audio Hotspot Support ───────────────────────────────────────────────────
