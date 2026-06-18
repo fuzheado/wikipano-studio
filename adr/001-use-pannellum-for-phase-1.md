@@ -27,11 +27,11 @@ We need a 360° panorama viewer that can render photosphere tours — multiple e
 
 ## Rationale
 
-1. **Existing deployment**: Pannellum is already running on Toolforge as `panoviewer.toolforge.org` with the `{{Pano360}}` template integrated into Commons. This means zero new infrastructure for Phase 1 — we extend the existing tool rather than deploying a new one.
+1. **Existing deployment**: Pannellum is already running on Toolforge as `panoviewer.toolforge.org` with the `{{Pano360}}` template integrated into Commons. This proves the technology works in Wikimedia's environment. We deploy our own tool but benefit from Pannellum's proven battle-tested reliability.
 
 2. **Community familiarity**: Wikimedia editors already know the `{{Pano360}}` → panoviewer flow. Adding tour support with a `{{PanoTour}}` template follows the same pattern.
 
-3. **Proven reliability**: Pannellum has been serving Commons 360° images since 2016. The multires tiling pipeline, caching, and Commons image resolution are all battle-tested.
+3. **Proven reliability**: Pannellum has been serving Commons 360° images since 2016 on `panoviewer.toolforge.org`. The multires tiling pipeline, caching, and Commons image resolution are all battle-tested on Wikimedia infrastructure.
 
 4. **Tour features sufficient for Phase 1**: Pannellum's built-in tour mode supports scene transitions, `scene` and `info` hotspot types, fade animations, custom tooltips, and `hotSpotDebug` for coordinate placement.
 

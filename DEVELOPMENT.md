@@ -21,13 +21,16 @@ Wiki Page (TOML/JSON) ──→ tour_server.mjs ──→ Pannellum Viewer
 A Kuula-like visual editor for creating photosphere tours:
 
 - **360° viewport** with click-to-capture hotspot coordinates (`mouseEventToCoords`)
+- **Yaw normalization**: coordinates auto-normalized to [-180, 180] per Pannellum JSON Schema, applied at capture time, on export, and on preview
 - **Scene management**: add/delete/reorder scenes from Commons `File:` refs or URLs
 - **Hotspot editor**: info hotspots (URL + tooltip) and scene links, with edit-in-place
 - **Import**: load existing tours from wiki pages (`?page=` param) or paste JSON
-- **Export**: download JSON or copy to clipboard
+- **Export**: download JSON or copy to clipboard, with scope selector (Entire project / Current scene only)
+- **Export path resolution**: panorama fields use original Commons URLs (`_original`) instead of cached `/images/` paths
 - **Preview**: localStorage-based preview (no server dependency)
 - **Thumbnails**: Commons 200px thumbnail images in scene list
 - **Modals**: dismissable (× button, click-outside, Escape key)
+- **JSON Validator**: `node scripts/validate-pannellum.mjs <file.json> [--fix]` — validates against official Pannellum JSON Schema, detects yaw range violations, URL encoding issues, and cross-references sceneId links
 
 ### Wikipedia Rich Info Cards (COMPLETE ✅)
 
@@ -59,7 +62,7 @@ photospheres/
     ├── tour_viewer.html         # Pannellum viewer with scene sidebar + Wikipedia cards
     ├── studio.html              # Visual tour editor
     ├── studio.js                # Editor logic
-    ├── tour_config.php          # PHP equivalent for Toolforge deployment
+    ├── tour_config.php          # Standalone PHP equivalent (reference only, not deployed)
     ├── sample_tour.json         # Example tour definition
     ├── HOW_TO_CREATE_A_TOUR.txt # Tutorial for wiki-based tour authoring
     └── README.md                # Setup & usage docs
@@ -73,7 +76,7 @@ photospheres/
 | Wiki pages as tour storage | Zero new infrastructure, full wiki collaboration | ADR-002 |
 | Hash-based image cache paths | Avoids CORS, URL-encoding issues with proxy URLs | ADR-003 |
 | Dual TOML + JSON format support | JSON canonical, TOML for hand-editing, YAML excluded | ADR-004, ADR-006 |
-| Node.js prototype server | No deps, rapid iteration; PHP version ready for Toolforge | ADR-005 |
+| Node.js prototype server | No deps, rapid iteration; deploys directly to Toolforge | ADR-005 |
 | localStorage for preview | No server dependency, reliable cross-tab data transfer | ADR-005 |
 | Wikipedia REST API for rich cards | Auto-fetches lead image, title, extract on hotspot hover | — |
 
@@ -103,15 +106,27 @@ photospheres/
 - [x] Hotspot editor (info + scene link, add/edit/delete)
 - [x] Import from wiki pages (`?page=` param) or paste JSON
 - [x] Export as JSON (download or copy to clipboard)
+- [x] Export scope selector: Entire project / Current scene only (instant radio toggle)
+- [x] Export panorama path fix: uses original Commons URLs, not cached `/images/` paths
+- [x] Yaw auto-normalization to [-180, 180] at capture, export, and preview
 - [x] Preview via localStorage (cross-tab, no server dependency)
 - [x] Commons 200px thumbnails in scene list
 - [x] Wikipedia rich info cards (auto-fetch lead image + extract)
 - [x] Modals with dismiss (× button, click-outside, Escape)
+- [x] Pannellum JSON Schema validator (`scripts/validate-pannellum.mjs`) with `--fix` support
+- [x] Server `/api/resolve-url` flat response fix (was nested `{url: {url:...}}`)
+- [x] SC-2.1: Hotspot click in viewport → edit modal (no viewport reset)
+- [x] SC-2.2: Hotspot card list — click to view, not hover (was hover-to-warp)
+- [x] Playwright test suite for SC-2.1 and SC-2.2 (`tests/studio-behaviors.spec.js`)
 
-### Phase 2.5: Toolforge Deployment
-**Goal**: Make the tour viewer and studio publicly accessible alongside `panoviewer.toolforge.org`
+### Phase 2.5: New Toolforge Tool Deployment (2026-06-17)
+**Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.
 
-- [ ] Port `tour_config.php` logic into the existing panoviewer PHP backend
+- [ ] Create new Toolforge tool via `toolforge tools create wikipano`
+- [ ] Deploy `prototype/` via rsync to `/data/project/wikipano/`
+- [ ] Start web service: `webservice --backend=kubernetes node start`
+- [ ] Create `{{PanoTour}}` template on Commons
+- [ ] Configure tool maintainers and access permissions
 - [ ] Create `{{PanoTour}}` Commons template → generates viewer/studio links
 - [ ] Handle multires tiling for large tour images (reuse existing pipeline)
 - [ ] OAuth-authenticated save-to-wiki from Studio

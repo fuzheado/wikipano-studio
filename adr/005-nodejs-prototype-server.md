@@ -1,60 +1,79 @@
-# ADR-005: Node.js Prototype Server with PHP Production Path
+# ADR-005: Node.js Prototype Server, Node.js on Toolforge
 
-**Date**: 2026-06-13
+**Date**: 2026-06-17
 **Status**: Accepted
-**Superseded by**: None
+**Supersedes**: ADR-005 v1 (2026-06-13)
 
 ## Context
 
-The prototype needs a server to:
-1. Serve the viewer HTML and static files
-2. Provide a tour API endpoint (`/api/tour?page=...`)
-3. Cache and serve Commons images
+The prototype uses Node.js for local development (zero deps, `node tour_server.mjs`). For Phase 2.5 Toolforge deployment, we had two options:
 
-The eventual production deployment target is **Toolforge**, where the existing `panoviewer.toolforge.org` runs on a PHP backend. However, PHP is not available in the local development environment.
+1. **Modify existing panoviewer tool** — port Node.js logic to PHP, integrate into `panoviewer.toolforge.org`
+2. **Create a new Toolforge tool** — deploy the Node.js prototype directly as a brand new tool
 
-## Options Considered
+The original ADR-005 (v1) assumed option 1 (PHP target). We now adopt option 2.
 
-| Option | Local Dev | Toolforge Compatible | Dependencies | Iteration Speed |
-|---|---|---|---|---|
-| **Node.js prototype** | ✅ Available | ❌ Needs porting | None (built-in modules) | ✅ Fast |
-| Python | ✅ Available | ❌ Needs porting | None | ✅ Fast |
-| PHP directly | ❌ Not available locally | ✅ Native | None | ❌ Can't test locally |
+## Why a New Tool Instead of Modifying Panoviewer
+
+Toolforge supports Node.js natively as a first-class web service backend:
+```
+webservice --backend=kubernetes node start
+```
+
+The existing `tour_server.mjs` uses **zero external dependencies** — only Node.js built-in modules (`node:http`, `node:fs`, `node:crypto`, `node:path`, `node:url`). It runs as-is on Toolforge without any porting.
+
+Modifying `panoviewer.toolforge.org` would require PHP porting, coordination with the existing tool's maintainers, and potential conflicts — all avoidable.
 
 ## Decision
 
-**Use Node.js for the local prototype with zero external dependencies. Keep a PHP version ready for Toolforge deployment.**
+**Use Node.js for local development and deploy the prototype directly as a new Toolforge tool.**
 
 ## Implementation
 
-The prototype server (`tour_server.mjs`) uses only Node.js built-in modules:
-- `node:http` — HTTP server
-- `node:fs/promises` — file I/O and caching
-- `node:crypto` — SHA-256 hashing for cache filenames
-- `node:path`, `node:url` — path resolution and URL parsing
+### Local Development
+```bash
+cd prototype
+node tour_server.mjs
+# Serves on http://localhost:8765/
+```
 
-The `tour_config.php` file contains equivalent logic in PHP for future Toolforge deployment.
+### Toolforge Deployment
+```bash
+# 1. Create the tool
+ssh login.toolforge.org toolforge tools create wikipano
 
-## Rationale
+# 2. Deploy files
+rsync -avz ./prototype/ user@login.toolforge.org:/data/project/wikipano/
 
-1. **Zero installation**: `node tour_server.mjs` — that's it. No `npm install`, no `composer install`, no virtual environments.
-2. **Rapid iteration**: Changes are tested immediately; no build step.
-3. **Modern JS features**: `fetch()` API, async/await, ES modules — clean, readable code.
-4. **PHP path preserved**: The `tour_config.php` file captures the same logic in PHP syntax, making Toolforge porting straightforward.
-5. **Python also available**: If needed, `python3 -m http.server` can serve static files for simple testing.
+# 3. Start Node.js web service
+ssh login.toolforge.org "become wikipano; webservice --backend=kubernetes node start"
+```
+
+The `tour_server.mjs` file is the web service entry point (Node.js detects it automatically on the `node` backend). No wrapper script needed.
+
+## Server Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/tour?page=...` | Fetch + parse tour JSON from Commons wiki page |
+| `GET /api/resolve?file=...` | Resolve `File:` → cached image path |
+| `GET /api/resolve-url?url=...` | Cache + resolve direct URL |
+| `POST /api/preview` / `GET /api/preview/:key` | Server-side preview storage |
+| `GET /` | Static file server (tour_viewer.html, studio.html, cached images) |
 
 ## Trade-offs
 
-- **Porting required**: The Node.js server must be ported to PHP for Toolforge deployment. Mitigated by:
-  - Simple, well-documented logic (few hundred lines)
-  - `tour_config.php` already written as a reference
-  - The core API logic is straightforward: fetch page → parse → resolve files → cache images → return JSON
-- **No hot reload**: Server must be restarted on changes. Acceptable for prototype.
-- **Single-threaded**: Node.js serves requests sequentially. Fine for single-user prototype; Toolforge deployment would use PHP-FPM or similar.
+| | New Tool | Integrate with Panoviewer |
+|---|---|---|
+| Code porting | ✅ None — deploy as-is | ❌ Node.js → PHP |
+| Maintenance | ✅ Independent versioning, release cycle | ❌ Coupled to panoviewer release |
+| Coordination | ✅ No outside maintainers needed | ❌ Requires panoviewer maintainer buy-in |
+| URL | `wikipano.toolforge.org` | `panoviewer.toolforge.org/tours/...` |
+| TOML parser | Native JS | Must reimplement in PHP |
 
 ## Consequences
 
-- Development uses `node tour_server.mjs`
-- `tour_config.php` is kept in sync with the Node.js logic (manually)
-- Phase 1.5 (Toolforge deployment) will port the server logic to the existing panoviewer PHP codebase
-- The TOML parser would need to be reimplemented in PHP (or use an existing library)
+- `tour_config.php` remains as a standalone PHP reference (for environments that need it), but is not deployed
+- The tool name is `wikipano` — not part of `panoviewer`
+- Phase 2.5 scope reduces to: create tool, deploy, create `{{PanoTour}}` template
+- Multires tiling pipeline can be built in Node.js rather than adapted from panoviewer's Python scripts

@@ -161,20 +161,45 @@ Direct URLs (`https://...`) are passed through unchanged.
 - No visual hotspot editor (use `hotSpotDebug: true` in config and browser console)
 - No OAuth authentication (tour pages are manually edited on wiki)
 - No multires tiling (uses direct Commons URLs/thumbnails)
-- CORS requires running behind a web server (local PHP dev server works)
 - File caching is file-based (not suitable for multi-server deployment)
 
 ## Deploying to Toolforge
 
-To deploy on Toolforge as an extension of panoviewer:
+The prototype deploys directly as a **new Toolforge tool** — no code changes or PHP porting needed.
 
-1. Add `tour_config.php` to the panoviewer tool directory
-2. Ensure `cache/` directory is writable on NFS
-3. The existing `public_html/` frontend already embeds Pannellum
-4. Update `{{Pano360}}` template or create a `{{PanoTour}}` template that generates links like:
-   ```
-   https://panoviewer.toolforge.org/#tour=User:Example/MyTour
-   ```
+```bash
+# 1. Create a new tool
+ssh login.toolforge.org
+toolforge tools create wikipano
+toolforge tools maintainers add wikipano YOUR_USERNAME
+
+# 2. Deploy the prototype
+rsync -avz ./ YOUR_USERNAME@login.toolforge.org:/data/project/wikipano/
+
+# 3. Start Node.js web service
+ssh login.toolforge.org "become wikipano; webservice --backend=kubernetes node start"
+
+# 4. Verify
+ssh login.toolforge.org "become wikipano; webservice --backend=kubernetes node status"
+```
+
+The `tour_server.mjs` entry point is auto-detected by the Node.js backend. No wrapper script needed.
+
+**Custom entry point** (if needed): create `launch.sh`:
+```bash
+#!/bin/bash
+cd /data/project/wikipano
+node tour_server.mjs
+```
+Then start with:
+```bash
+webservice --backend=kubernetes node start --launch launch.sh
+```
+
+**Create a `{{PanoTour}}` template on Commons** that generates links like:
+```
+https://wikipano.toolforge.org/studio.html?page=User:Example/MyTour
+```
 
 ## Next Steps (Phase 2)
 

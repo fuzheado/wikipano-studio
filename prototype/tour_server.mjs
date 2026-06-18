@@ -30,7 +30,7 @@ const CACHE_DIR     = join(__dirname, 'cache');
 const IMG_CACHE_DIR = join(__dirname, 'images');
 const CACHE_TTL     = 3600 * 1000; // 1 hour
 const MAX_IMG_WIDTH = 4096;
-const USER_AGENT    = 'PhotosphereTourPrototype/0.1 (https://panoviewer.toolforge.org/)';
+const USER_AGENT    = 'PhotosphereTour/0.1 (Wikimedia Photosphere Tours; https://github.com/.../photospheres)';
 
 // ── MIME map ────────────────────────────────────────────────────────────────
 
@@ -175,7 +175,8 @@ async function jsonCacheGet(key, compute) {
     try {
         const stat = await (await import('node:fs/promises')).stat(cachePath);
         if (Date.now() - stat.mtimeMs < CACHE_TTL) {
-            return JSON.parse(await readFile(cachePath, 'utf-8'));
+            const cached = JSON.parse(await readFile(cachePath, 'utf-8'));
+            return cached;
         }
     } catch {}
     const value = await compute();
@@ -185,11 +186,12 @@ async function jsonCacheGet(key, compute) {
 
 async function resolveCommonsFile(filename) {
     return jsonCacheGet(`file:${filename}`, async () => {
-        const url = `${COMMONS_API}?${new URLSearchParams({
+        // Request both thumburl AND url in same call — when thumburl is present,
+        // ii.url correctly returns the original upload URL (not the thumb)
+        const resp = await fetch(`${COMMONS_API}?${new URLSearchParams({
             action: 'query', titles: filename, prop: 'imageinfo',
-            iiprop: 'url|size|mime', iiurlwidth: String(MAX_IMG_WIDTH), format: 'json',
-        })}`;
-        const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(10000) });
+            iiprop: 'url|size|thumburl', format: 'json',
+        })}`, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(10000) });
         if (!resp.ok) throw new Error(`Commons API error for ${filename}`);
         const data = await resp.json();
         const page = Object.values(data?.query?.pages || {})[0];
@@ -197,7 +199,10 @@ async function resolveCommonsFile(filename) {
         const ii = page?.imageinfo?.[0];
         if (!ii) throw new Error(`No image info for ${filename}`);
         return {
-            url: (ii.thumburl && ii.width > MAX_IMG_WIDTH) ? ii.thumburl : ii.url,
+            // For the studio's local cache: use thumburl if available, otherwise url
+            url: ii.thumburl || ii.url,
+            // For export/preview: always use the direct original upload URL
+            original: ii.url,
             width: ii.width || 0,
         };
     });
@@ -243,15 +248,22 @@ async function cacheImage(sourceUrl) {
 }
 
 function makeThumbUrl(url) {
+    // Already a thumbnail URL — just swap size to 200px
+    // e.g. .../thumb/a/bc/File.jpg/2000px-File.jpg → .../thumb/a/bc/File.jpg/200px-File.jpg
+    // e.g. .../thumb/a/bc/File.jpg/3840px-File.jpg → .../thumb/a/bc/File.jpg/200px-File.jpg
+    const thumbMatch = url.match(/^(.+)\/(\d+px-)(.+)$/);
+    if (thumbMatch) return `${thumbMatch[1]}/200px-${thumbMatch[3]}`;
+
+    // Original URL (no /thumb/ segment) — construct thumb path
+    // e.g. .../commons/a/bc/File.jpg → .../commons/thumb/a/bc/File.jpg/200px-File.jpg
     if (url.includes('upload.wikimedia.org/wikipedia/commons/')) {
-        // Convert: .../commons/a/bc/File.jpg → .../commons/thumb/a/bc/File.jpg/200px-File.jpg
         const parts = url.split('/');
         const filename = parts.pop();
         const base = parts.join('/');
         const thumbBase = base.replace('/wikipedia/commons/', '/wikipedia/commons/thumb/');
         return `${thumbBase}/200px-${filename}`;
     }
-    // For non-Commons URLs, return the original (will be scaled in browser)
+    // For non-Commons URLs, return the original
     return url;
 }
 
@@ -344,7 +356,9 @@ const server = createServer(async (req, res) => {
         if (!file) return jsonResponse(res, 400, { error: 'Missing required parameter: file' });
         try {
             const result = await resolveCommonsFile('File:' + file);
+            // Cache the thumb (from result.url) locally; use original for original field
             const cached = await cacheImage(result.url);
+            cached.original = result.original; // always store the direct original URL
             jsonResponse(res, 200, cached);
         } catch (e) {
             jsonResponse(res, 404, { error: e.message });
@@ -358,7 +372,8 @@ const server = createServer(async (req, res) => {
         if (!imageUrl) return jsonResponse(res, 400, { error: 'Missing required parameter: url' });
         try {
             const cached = await cacheImage(imageUrl);
-            jsonResponse(res, 200, { url: cached });
+            // Return flat: url (cached local path), thumb, original (source URL)
+            jsonResponse(res, 200, cached);
         } catch (e) {
             jsonResponse(res, 404, { error: e.message });
         }

@@ -47,7 +47,7 @@ function cacheImage(sourceUrl) {
 3. **No special routing**: The existing static file server handles `/images/*` automatically.
 4. **Deterministic**: Same Commons URL always produces the same cache filename (idempotent).
 5. **Self-cleaning**: Old cached images can be cleaned by TTL or disk space monitoring.
-6. **Matches production pattern**: panoviewer already downloads and caches Commons images.
+6. **Matches production pattern**: `panoviewer.toolforge.org` already downloads and caches Commons images via its PHP backend. Our approach mirrors this pattern.
 
 ## Trade-offs
 
@@ -59,4 +59,4 @@ function cacheImage(sourceUrl) {
 
 - `images/` directory holds cached JPEGs with 1-hour TTL
 - API returns paths like `/images/<hash>.jpg` for each scene's `panorama` field
-- Future Toolforge deployment can reuse the existing panoviewer NFS cache
+- The new Toolforge tool has its own `/data/project/wikipano/` NFS directory for the image cache

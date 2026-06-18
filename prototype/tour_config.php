@@ -33,7 +33,7 @@ define('CACHE_TTL', 3600);
 define('MAX_IMAGE_WIDTH', 4096);
 
 // User agent for Wikimedia API requests (required by policy)
-define('USER_AGENT', 'PhotosphereTourPrototype/0.1 (https://panoviewer.toolforge.org/)');
+define('USER_AGENT', 'PhotosphereTour/0.1 (Wikimedia Photosphere Tours; https://github.com/.../photospheres)');
 
 // ── CORS & Content-Type ─────────────────────────────────────────────────────
 

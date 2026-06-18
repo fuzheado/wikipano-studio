@@ -363,8 +363,8 @@ body {
             <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
         </div>
         <label>Image Source</label>
-        <input type="text" id="modal-img-url" placeholder="Commons file name (File:Example.jpg) or full URL">
-        <div class="hint">Enter a Commons filename like <code>File:My_Photo.jpg</code> or a full image URL</div>
+        <input type="text" id="modal-img-url" placeholder="File:Example.jpg  or  https://commons.wikimedia.org/wiki/File:...">
+        <div class="hint">Accepts: <code>File:Photo.jpg</code>, bare filename <code>Glenstone_24.jpg</code>, Commons page URL, or direct image URL</div>
         <label style="margin-top:12px;">Scene Title (optional)</label>
         <input type="text" id="modal-title" placeholder="My Scene">
         <div class="actions">
@@ -429,6 +429,15 @@ body {
         <div style="display:flex;align-items:center;justify-content:space-between;">
             <h2>Export Tour</h2>
             <button class="modal-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">×</button>
+        </div>
+        <label>Export Scope</label>
+        <div style="display:flex;gap:20px;margin-bottom:12px;font-size:0.85rem;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text);font-size:0.85rem;">
+                <input type="radio" name="export-scope" value="all" checked> Entire project
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text);font-size:0.85rem;">
+                <input type="radio" name="export-scope" value="current"> Current scene only
+            </label>
         </div>
         <label>Tour JSON</label>
         <textarea id="modal-export-text" readonly></textarea>

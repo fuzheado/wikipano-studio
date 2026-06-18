@@ -45,12 +45,14 @@ A full authoring pipeline for collaborative photosphere tours:
 - Wikipedia rich info cards on hotspot hover
 
 ### Phase 2: Visual Studio ✅
-- Click in the 360° viewport to capture hotspot coordinates
+- Click in the 360° viewport to capture hotspot coordinates (yaw auto-normalized to [-180, 180] per Pannellum spec)
 - Add/edit/delete scenes and hotspots
 - Import from Commons wiki pages
-- Export as JSON (download or copy)
+- Export as JSON (download or copy) — select "Entire project" or "Current scene only"
+- Export resolves panorama paths to original Commons URLs (not cached `/images/` paths)
 - Preview tours in a new tab
 - Red ➤ / blue ⓘ hotspot icons in the viewport
+- JSON validator: `node scripts/validate-pannellum.mjs <file.json> [--fix]`
 
 ## Quick Start
 
@@ -63,6 +65,11 @@ node tour_server.mjs
 
 **Requires**: Node.js 18+ (zero external dependencies — uses only built-in modules)
 
+**Run tests**:
+```bash
+npx playwright test --project=chromium  # Requires @playwright/test installed
+```
+
 ## Project Structure
 
 ```
@@ -72,12 +79,19 @@ photospheres/
 │   ├── tour_viewer.html    # End-user viewer
 │   ├── studio.html         # Visual editor UI
 │   ├── studio.js           # Editor logic
-│   └── tour_config.php     # PHP reference for Toolforge
+│   └── tour_config.php     # Standalone PHP equivalent (reference only, not deployed)
 ├── adr/                    # Architecture Decision Records
 ├── RESEARCH_REPORT.md      # Library landscape analysis
 ├── PRD.md                  # Product requirements
 ├── DEVELOPMENT.md          # Build status + roadmap
-└── HANDOVER.md             # Session handover notes
+├── DEBUGGING.md            # Visual debugging with playwright-cli
+├── HANDOVER.md             # Session handover notes
+├── tests/                  # Playwright test suite
+│   └── studio-behaviors.spec.js  # Studio interaction behavior tests
+├── playwright.config.js    # Playwright configuration
+├── scripts/                # Utility scripts
+│   ├── dump-state.js       # Playwright state introspection
+│   └── validate-pannellum.mjs  # Pannellum JSON Schema validator + auto-fix
 ```
 
 ## Tour Definition Format
@@ -120,9 +134,9 @@ panorama = "File:My_Photo.jpg"
 | Phase | Status | Description |
 |---|---|---|
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
-| 2 — Studio | In progress | Visual editor with click-to-place hotspots |
-| 2.5 — Deploy | Next | Toolforge deployment, `{{PanoTour}}` template, OAuth save |
-| 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery |
+| 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
+| 2.5 — Deploy | Next | Deploy as new Toolforge tool (Node.js native), `{{PanoTour}}` template |
+| 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery, OAuth save |
 
 ## License
 

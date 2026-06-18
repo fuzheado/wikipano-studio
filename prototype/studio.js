@@ -35,6 +35,44 @@ const hsCoordPreview = $('hs-coord-preview');
 const statusMsg = $('status-msg');
 const statusCoords = $('status-coords');
 
+// ── Image Source Normalization ──────────────────────────────────────────────
+
+/**
+ * Normalize diverse image source inputs into a canonical form.
+ * Handles:
+ *   - File:Glenstone_24.jpg
+ *   - https://commons.wikimedia.org/wiki/File:Glenstone_24.jpg
+ *   - https://commons.wikimedia.org/wiki/Special:FilePath/Glenstone_24.jpg
+ *   - https://upload.wikimedia.org/... (direct image URL — passed through)
+ *   - Glenstone_24.jpg (bare filename — prefixed with File:)
+ */
+function normalizeImageSource(input) {
+    if (!input || typeof input !== 'string') return '';
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+
+    // Already a File: ref
+    if (trimmed.toLowerCase().startsWith('file:')) {
+        return trimmed; // keep original casing
+    }
+
+    // Commons file page URL: https://commons.wikimedia.org/wiki/File:...
+    const wikiMatch = trimmed.match(/commons\.wikimedia\.org\/wiki\/File:([^\s\?#]+)/i);
+    if (wikiMatch) return 'File:' + wikiMatch[1];
+
+    // Special:FilePath URL: https://commons.wikimedia.org/wiki/Special:FilePath/...
+    const filePathMatch = trimmed.match(/commons\.wikimedia\.org\/wiki\/Special:FilePath\/([^\s\?#]+)/i);
+    if (filePathMatch) return 'File:' + filePathMatch[1];
+
+    // Direct image URL (upload.wikimedia.org, etc.) — pass through
+    if (/^https?:\/\//.test(trimmed)) {
+        return trimmed;
+    }
+
+    // Bare filename — prefix with File:
+    return 'File:' + trimmed;
+}
+
 // ── Scene Management ─────────────────────────────────────────────────────────
 
 function addScene(imageUrl, title) {
@@ -204,6 +242,43 @@ async function loadSceneIntoViewport(id) {
                 } catch(e) { /* ignore dupes */ }
             });
         }
+        // Studio mode: intercept hotspot clicks → open edit modal instead of navigating
+        // Pannellum sets onclick directly on the element (not addEventListener), so we
+        // wrap it to replace navigation with the edit modal. We do NOT fire Pannellum's
+        // original handler — in edit mode, clicking a hotspot should edit it, not navigate.
+        let _nextHsIdx = 0;
+
+        function wrapHotspotOnclick(el) {
+            if (el.dataset.hsOnclickWrapped) return;
+            el.dataset.hsOnclickWrapped = '1';
+            el.dataset.hsIdx = _nextHsIdx++;
+            el.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt(el.dataset.hsIdx, 10);
+                if (!isNaN(idx)) {
+                    editHotspot(state.activeSceneId, idx);
+                }
+                return false;
+            };
+        }
+
+        // Wrap existing hotspot onclick elements
+        document.querySelectorAll('.studio-hotspot').forEach(wrapHotspotOnclick);
+        // Watch for new hotspots being added
+        const hotspotObserver = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    if (node.classList?.contains('studio-hotspot')) {
+                        wrapHotspotOnclick(node);
+                    }
+                    // Also check nested studio-hotspots
+                    node.querySelectorAll?.('.studio-hotspot').forEach(wrapHotspotOnclick);
+                }
+            }
+        });
+        hotspotObserver.observe(document.getElementById('viewport'), { childList: true, subtree: true });
         // Refresh UI
         renderHotspotList();
         renderSceneList();
@@ -223,17 +298,18 @@ async function loadSceneIntoViewport(id) {
         }
     });
 
-    // Click — capture coordinates
+    // Click — capture coordinates (normalize yaw to [-180, 180] per spec)
     state.pannellumViewer.on('mousedown', (e) => {
         const coords = state.pannellumViewer.mouseEventToCoords(e);
         if (coords) {
-            state.capturedCoords = { pitch: coords[0], yaw: coords[1] };
-            coordYaw.textContent = coords[1].toFixed(2);
+            const nYaw = normalizeYaw(coords[1]);
+            state.capturedCoords = { pitch: coords[0], yaw: nYaw };
+            coordYaw.textContent = nYaw.toFixed(2);
             coordPitch.textContent = coords[0].toFixed(2);
             coordDisplay.classList.add('visible');
             addHotspotBtn.style.display = 'block';
             hsCoordPreview.textContent =
-                `Yaw: ${coords[1].toFixed(2)}°  Pitch: ${coords[0].toFixed(2)}°`;
+                `Yaw: ${nYaw.toFixed(2)}°  Pitch: ${coords[0].toFixed(2)}°`;
             updateStatus(`Coordinates captured — click "Place Hotspot Here" to add`);
         }
     });
@@ -293,13 +369,13 @@ function renderHotspotList() {
         }
         const hsId = `${id}_${idx}`;
         return `<div class="hotspot-card"
-            onmouseenter="lookAtHotspot(${hs.yaw}, ${hs.pitch})"
-            onmouseleave="stopLookAt()">
+            onclick="lookAtHotspot(${hs.yaw}, ${hs.pitch})"
+            style="cursor:pointer;" title="Click to view this hotspot">
             <div class="hs-header">
                 <span class="hs-type ${typeClass}">${typeLabel}</span>
                 <span class="hs-text">${escHtml(hs.text || '(no text)')}</span>
-                <button class="hs-edit" onclick="editHotspot('${id}', ${idx})" title="Edit">✎</button>
-                <button class="hs-delete" onclick="deleteHotspot('${id}', ${idx})" title="Delete">×</button>
+                <button class="hs-edit" onclick="event.stopPropagation(); editHotspot('${id}', ${idx})" title="Edit">✎</button>
+                <button class="hs-delete" onclick="event.stopPropagation(); deleteHotspot('${id}', ${idx})" title="Delete">×</button>
             </div>
             <div class="hs-coords">Yaw: ${hs.yaw.toFixed(2)}°  Pitch: ${hs.pitch.toFixed(2)}°</div>
             ${detail ? `<div class="hs-detail">${detail}</div>` : ''}
@@ -312,10 +388,6 @@ function renderHotspotList() {
 function lookAtHotspot(yaw, pitch) {
     if (!state.pannellumViewer) return;
     state.pannellumViewer.lookAt(pitch, yaw, state.pannellumViewer.getHfov());
-}
-
-function stopLookAt() {
-    // No-op — viewport stays where user panned it
 }
 
 let _cycleIdx = 0;
@@ -546,19 +618,61 @@ async function importTour() {
     }
 }
 
-function exportTour() {
+// ── Export helpers (cached resolution for instant radio toggling) ────────────
+
+/** @type {Object<string, object>|null} */
+let _exportResolvedScenes = null;
+
+function buildExportJSON(scope) {
+    const sceneIds = scope === 'current' && state.activeSceneId
+        ? [state.activeSceneId]
+        : state.sceneOrder;
+
     const scenes = {};
+    for (const id of sceneIds) {
+        const resolved = _exportResolvedScenes?.[id];
+        if (!resolved) continue;
+        scenes[id] = resolved;
+    }
+
+    const firstScene = scope === 'current' && state.activeSceneId
+        ? state.activeSceneId
+        : (state.activeSceneId || state.sceneOrder[0] || '');
+
+    return {
+        default: {
+            firstScene: firstScene,
+            author: state.defaultAuthor,
+            sceneFadeDuration: state.sceneFadeDuration,
+        },
+        scenes: scenes,
+    };
+}
+
+function updateExportTextarea() {
+    if (!_exportResolvedScenes) return;
+    const scope = document.querySelector('input[name="export-scope"]:checked')?.value || 'all';
+    const tour = buildExportJSON(scope);
+    $('modal-export-text').value = JSON.stringify(tour, null, 2);
+}
+
+async function exportTour() {
+    updateStatus('Resolving images...');
+
+    // Resolve all scene data once — stored in _exportResolvedScenes for radio toggling
+    _exportResolvedScenes = {};
     for (const id of state.sceneOrder) {
         const s = state.scenes[id];
-        scenes[id] = {
+        const panorama = s._original || await resolvePanoramaForPreview(s.panorama);
+        _exportResolvedScenes[id] = {
             title: s.title,
             hfov: s.hfov,
             pitch: s.pitch,
             yaw: s.yaw,
-            type: s.type,
-            panorama: s.panorama,
-            hotSpots: s.hotSpots.map(hs => {
-                const h = { pitch: hs.pitch, yaw: hs.yaw, type: hs.type, text: hs.text };
+            type: s.type || 'equirectangular',
+            panorama: panorama,
+            hotSpots: (s.hotSpots || []).map(hs => {
+                const h = { pitch: hs.pitch, yaw: normalizeYaw(hs.yaw), type: hs.type || 'info', text: hs.text || '' };
                 if (hs.type === 'scene' && hs.sceneId) h.sceneId = hs.sceneId;
                 if (hs.URL) h.URL = hs.URL;
                 return h;
@@ -566,17 +680,12 @@ function exportTour() {
         };
     }
 
-    const tour = {
-        default: {
-            firstScene: state.activeSceneId || state.sceneOrder[0] || '',
-            author: state.defaultAuthor,
-            sceneFadeDuration: state.sceneFadeDuration,
-        },
-        scenes: scenes,
-    };
+    // Pre-select "Entire project" radio
+    const allRadio = document.querySelector('input[name="export-scope"][value="all"]');
+    if (allRadio) allRadio.checked = true;
 
-    const json = JSON.stringify(tour, null, 2);
-    $('modal-export-text').value = json;
+    // Populate textarea with current scope (all)
+    updateExportTextarea();
     modalShow('modal-export');
 }
 
@@ -603,12 +712,59 @@ function downloadJSON() {
 
 // ── Preview ──────────────────────────────────────────────────────────────────
 
-function previewTour() {
-    // Build tour JSON
-    const scenes = {};
-    for (const id of state.sceneOrder) {
-        scenes[id] = { ...state.scenes[id] };
+/**
+ * Resolve a single panorama value (File: ref or URL) to a cached image path.
+ * Returns the path as-is if already resolved or not recognizable.
+ */
+async function resolvePanoramaForPreview(panorama) {
+    if (!panorama || typeof panorama !== 'string') return panorama;
+    // Already a /images/ cache path — use directly
+    if (panorama.startsWith('/images/')) return panorama;
+    // Direct URL — use directly
+    if (panorama.startsWith('http://') || panorama.startsWith('https://')) {
+        // If it's a Commons File page or Special:FilePath URL, resolve via server
+        if (/commons\.wikimedia\.org\/wiki\/File:/i.test(panorama)) {
+            const file = panorama.match(/File:([^\s\?#]+)/)?.[1];
+            if (file) {
+                const resp = await fetch(`/api/resolve?file=${encodeURIComponent(file)}`);
+                if (resp.ok) { const d = await resp.json(); return d.original || d.url || panorama; }
+            }
+        }
+        return panorama;
     }
+    // File: reference — resolve via server
+    const file = panorama.match(/^File:\s*(.+)$/i)?.[1];
+    if (file) {
+        const resp = await fetch(`/api/resolve?file=${encodeURIComponent(file)}`);
+        if (resp.ok) { const d = await resp.json(); return d.original || d.url || panorama; }
+    }
+    return panorama;
+}
+
+async function previewTour() {
+    updateStatus('Resolving images...');
+    const resolvedScenes = {};
+
+    // Resolve each scene's panorama — prefer original Commons URL
+    for (const id of state.sceneOrder) {
+        const scene = state.scenes[id];
+        const panorama = scene._original || await resolvePanoramaForPreview(scene.panorama);
+        resolvedScenes[id] = {
+            title: scene.title,
+            hfov: scene.hfov,
+            yaw: scene.yaw,
+            pitch: scene.pitch,
+            type: scene.type || 'equirectangular',
+            panorama: panorama,
+            hotSpots: (scene.hotSpots || []).map(hs => {
+                const out = { pitch: hs.pitch, yaw: normalizeYaw(hs.yaw), type: hs.type || 'info', text: hs.text || '' };
+                if (hs.type === 'scene' && hs.sceneId) out.sceneId = hs.sceneId;
+                if (hs.URL) out.URL = hs.URL;
+                return out;
+            }),
+        };
+    }
+
     const tour = {
         default: {
             firstScene: state.activeSceneId || state.sceneOrder[0] || '',
@@ -616,10 +772,9 @@ function previewTour() {
             sceneFadeDuration: state.sceneFadeDuration,
             autoLoad: true,
         },
-        scenes: scenes,
+        scenes: resolvedScenes,
     };
 
-    // Store in localStorage (persistent, shared across all tabs)
     try {
         localStorage.setItem('photosphere-preview-tour', JSON.stringify(tour));
         window.open('/tour_viewer.html#preview=local', '_blank');
@@ -670,6 +825,20 @@ function setupModalDismiss() {
     });
 }
 
+// ── Coordinate Normalization ────────────────────────────────────────────────
+
+/**
+ * Normalize yaw to [-180, 180] per Pannellum JSON Schema.
+ * Pannellum's viewer accepts out-of-range values (it wraps internally),
+ * but strict spec compliance and other tooling expect [-180, 180].
+ *
+ * Normalizing at capture time prevents invalid data from ever being stored.
+ */
+function normalizeYaw(yaw) {
+    if (typeof yaw !== 'number' || isNaN(yaw)) return yaw;
+    return ((yaw % 360) + 540) % 360 - 180;
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 function escHtml(str) {
@@ -701,10 +870,11 @@ function init() {
     // Add scene
     $('add-scene-btn').addEventListener('click', () => modalShow('modal-add-scene'));
     $('modal-confirm-add').addEventListener('click', () => {
-        const url = $('modal-img-url').value.trim();
+        const raw = $('modal-img-url').value;
         const title = $('modal-title').value.trim();
-        if (!url) { updateStatus('Please enter an image URL or Commons filename', true); return; }
-        addScene(url, title);
+        const normalized = normalizeImageSource(raw);
+        if (!normalized) { updateStatus('Please enter an image URL or Commons filename', true); return; }
+        addScene(normalized, title);
         modalHide('modal-add-scene');
         $('modal-img-url').value = '';
         $('modal-title').value = '';
@@ -726,6 +896,11 @@ function init() {
     // Export modal
     $('modal-copy-json').addEventListener('click', copyJSON);
     $('modal-download-json').addEventListener('click', downloadJSON);
+
+    // Export scope radio buttons — regenerate JSON on toggle
+    document.querySelectorAll('input[name="export-scope"]').forEach(radio => {
+        radio.addEventListener('change', updateExportTextarea);
+    });
 
     // Properties
     setupPropertyBindings();
