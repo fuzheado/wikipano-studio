@@ -587,6 +587,13 @@ async function confirmAddHotspot() {
         updateStatus(`Hotspot added: ${hs.text}`);
     }
 
+    // Validate the hotspot immediately — warn if required fields are missing
+    const hsWarnings = validateHotspot(hs, state.scenes[sceneId].title, state.scenes[sceneId].hotSpots.indexOf(hs));
+    if (hsWarnings.length > 0) {
+        updateStatus('⚠️ ' + hsWarnings[0], true);
+        console.warn('Hotspot validation:', hsWarnings);
+    }
+
     // Reload viewer to reflect changes, preserving the current view position.
     // Capture pitch/yaw/hfov before destroying the viewer so the user isn't
     // warped back to the scene's default orientation.
@@ -646,6 +653,7 @@ function importTourData(data) {
                     sceneId: hs.sceneId || undefined,
                     hotspotSubtype: hs.hotspotSubtype || undefined,
                     audioUrl: hs.audioUrl || undefined,
+                    videoUrl: hs.videoUrl || undefined,
                 })),
             };
             state.sceneOrder.push(id);
@@ -671,7 +679,17 @@ function importTourData(data) {
         renderProperties();
     }
 
-    updateStatus(`Imported: ${state.sceneOrder.length} scenes`);
+    // Validate imported data — warn about hotspots with missing fields
+    const warnings = validateTour();
+    let msg = `Imported: ${state.sceneOrder.length} scenes`;
+    if (warnings.length > 0) {
+        msg += ` ⚠️ ${warnings.length} issue(s)`;
+        updateStatus(msg, true);
+        // Show first warning prominently so the user sees it
+        setTimeout(() => updateStatus(`⚠️ ${warnings[0]}`, true), 1500);
+    } else {
+        updateStatus(msg);
+    }
 }
 
 async function importTour() {
@@ -700,6 +718,67 @@ async function importTour() {
     } catch (e) {
         updateStatus('Import error: ' + e.message, true);
     }
+}
+
+// ── Tour Validation ─────────────────────────────────────────────────────────
+//
+// INTEGRITY CHECK POLICY (see CAVEATS.md §0):
+// Every data boundary (add, edit, import, export, preview) must validate
+// hotspot completeness. When adding a new subtype or field:
+//   1. Add to confirmAddHotspot()  — storage
+//   2. Add to importTourData()     — import mapping
+//   3. Add to exportTour()         — export mapping
+//   4. Add to previewTour()        — preview mapping
+//   5. Add to validateHotspot()    — integrity check (THIS FUNCTION)
+//
+// Missing any step = silent data loss. All warnings go to status bar + console.
+
+/**
+ * Validate a single hotspot object for missing required fields based on its type/subtype.
+ * Returns an array of warning strings (empty if valid).
+ */
+function validateHotspot(hs, sceneTitle, index) {
+    const w = [];
+    const prefix = `[${sceneTitle} HS#${index + 1}]`;
+    const subtype = hs.hotspotSubtype || (hs.type === 'scene' ? 'scene' : null);
+
+    if (subtype === 'audio' || hs.hotspotSubtype === 'audio') {
+        if (!hs.audioUrl) w.push(`${prefix} AUDIO hotspot missing audio URL`);
+    }
+    if (subtype === 'video' || hs.hotspotSubtype === 'video') {
+        if (!hs.videoUrl) w.push(`${prefix} VIDEO hotspot missing video URL`);
+    }
+    if (hs.type === 'scene') {
+        if (!hs.sceneId) w.push(`${prefix} SCENE link missing target scene ID`);
+    }
+    // General: any hotspot should at least have meaningful text
+    if (!hs.text || hs.text === 'Click here') {
+        // Only warn if it's not a deliberate placeholder
+        if (hs.type !== 'scene' && !hs.hotspotSubtype) {
+            // Plain info hotspot with no text is probably unfinished
+        }
+    }
+    return w;
+}
+
+/**
+ * Validate all scenes and hotspots for missing required fields.
+ * Returns an array of warning strings, or empty array if all valid.
+ * Also logs all warnings to console for debugging.
+ */
+function validateTour(quiet) {
+    const warnings = [];
+    for (const id of state.sceneOrder) {
+        const scene = state.scenes[id];
+        if (!scene.hotSpots) continue;
+        for (let i = 0; i < scene.hotSpots.length; i++) {
+            warnings.push(...validateHotspot(scene.hotSpots[i], scene.title, i));
+        }
+    }
+    if (warnings.length > 0) {
+        console.warn(`Tour validation: ${warnings.length} warning(s)`, warnings);
+    }
+    return warnings;
 }
 
 // ── Export helpers (cached resolution for instant radio toggling) ────────────
@@ -741,6 +820,13 @@ function updateExportTextarea() {
 }
 
 async function exportTour() {
+    // Validate before resolving — catch missing fields early
+    const warnings = validateTour();
+    if (warnings.length > 0) {
+        updateStatus('⚠️ ' + warnings[0] + (warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ''), true);
+        console.warn('Tour validation warnings:', warnings);
+    }
+
     updateStatus('Resolving images...');
 
     // Resolve all scene data once — stored in _exportResolvedScenes for radio toggling.
@@ -764,6 +850,7 @@ async function exportTour() {
                 if (hs.URL) h.URL = hs.URL;
                 if (hs.hotspotSubtype) h.hotspotSubtype = hs.hotspotSubtype;
                 if (hs.audioUrl) h.audioUrl = hs.audioUrl;
+                if (hs.videoUrl) h.videoUrl = hs.videoUrl;
                 return h;
             }),
         };
@@ -831,6 +918,12 @@ async function resolvePanoramaForPreview(panorama) {
 }
 
 async function previewTour() {
+    const warnings = validateTour();
+    if (warnings.length > 0) {
+        updateStatus('⚠️ ' + warnings[0] + (warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ''), true);
+        console.warn('Tour validation warnings:', warnings);
+    }
+
     updateStatus('Resolving images...');
     const resolvedScenes = {};
 

@@ -824,8 +824,12 @@ function enrichHotspots(scenes) {
                 })(tagClass);
                 hs.createTooltipArgs = {};
             }
-            // Keep cssClass for Pannellum's own use (it may still apply to child divs)
-            if (tagClass) {
+            // Only set cssClass for audio/video — these have custom CSS that replaces
+            // Pannellum's default sprite. For scene/info, let Pannellum create the default
+            // sprite child (pnlm-scene / pnlm-info) which provides the icon.
+            // Setting cssClass for scene/info PREVENTS Pannellum from creating the sprite
+            // child, which makes the icon invisible.
+            if (tagClass === 'audio-hotspot' || tagClass === 'video-hotspot') {
                 hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + tagClass;
             }
         }
@@ -861,6 +865,14 @@ function _doInterceptInfo(panorama) {
 function interceptInfoHotspots() {
     var p = document.getElementById('panorama');
     if (p) _doInterceptInfo(p);
+    // Pannellum 2.5.7 scene hotspot sprites in .pnlm-render-container default
+    // to visibility:hidden and Pannellum may re-hide them. Force visible after
+    // a short delay to let Pannellum finish its own visibility updates.
+    setTimeout(function() {
+        document.querySelectorAll('.pnlm-render-container .pnlm-scene').forEach(function(el) {
+            el.style.visibility = 'visible';
+        });
+    }, 200);
 }
 
 // ── Show/Hide All ──────────────────────────────────────────────────────────

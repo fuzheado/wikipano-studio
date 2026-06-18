@@ -4,7 +4,59 @@ Hard-won lessons from debugging this project. Read before touching hotspot CSS, 
 
 ---
 
-## 1. Pannellum: Never Use `transform` in Hotspot Keyframes
+## 0. Validate at Every Data Boundary
+
+**Every checkpoint where data enters, transforms, or exits the system must validate hotspot integrity.** This is not optional — missing fields propagate silently through the pipeline and surface as confusing bugs much later (e.g., video URL lost on import, invisible on export, discovered days later).
+
+**Checkpoints:**
+
+| Stage | Function | Check |
+|---|---|---|
+| User adds/edits hotspot | `confirmAddHotspot()` | `validateHotspot(hs)` |
+| Import from wiki/JSON | `importTourData()` | `validateTour()` |
+| Export to JSON | `exportTour()` | `validateTour()` |
+| Preview | `previewTour()` | `validateTour()` |
+| Viewer loads tour | `enrichHotspots()` | Consider: warn on missing `audioUrl`/`videoUrl` |
+
+**What to validate:** For each hotspot subtype (audio, video, scene), the corresponding URL/target field must be present. When adding a NEW subtype, add its check to `validateHotspot()` immediately. When adding a NEW data boundary (e.g., server-side validation, API endpoint), add a `validateTour()` call.
+
+**How to validate:** Show ⚠️ in the status bar, log to console. Non-blocking — the user can proceed but knows something is wrong.
+
+**When adding a new hotspot field** (e.g., `quizQuestion`, `portalUrl`):
+1. Add it to `confirmAddHotspot()` (storage)
+2. Add it to `importTourData()` (import)
+3. Add it to `exportTour()` hotspot mapping (export)
+4. Add it to `previewTour()` hotspot mapping (preview)
+5. Add it to `validateHotspot()` (integrity check)
+6. Add it to `renderHotspotList()` (UI badge)
+7. Add it to viewer's `enrichHotspots()` (CSS class + behavior)
+
+**This list is alive** — add new checkpoints as the codebase evolves.
+
+---
+
+## 1. Pannellum: Hotspot Elements Live in Unexpected Containers
+
+Pannellum 2.5.7 renders different hotspot types in **different DOM containers**. Do not assume all hotspot elements are children of `.pnlm-hotspot-base` or the `#panorama` div.
+
+| Hotspot type | Location of visible icon | Notes |
+|---|---|---|
+| Scene (arrow ➤) | `.pnlm-render-container` | Separate from `.pnlm-hotspot-base`, inline `visibility:hidden`, must be forced visible |
+| Info (ⓘ) | `.pnlm-hotspot-base > .pnlm-hotspot.pnlm-sprite` | Child of base div |
+| Audio/video (custom) | `.pnlm-hotspot-base` (via CSS `::after`) | Custom styling replaces Pannellum sprite |
+
+**Lesson from the invisible scene icon**: The scene sprite had correct classes (`pnlm-hotspot pnlm-sprite pnlm-scene`) and size (26×26px) but `visibility:hidden` inline and no positioning. It was in `.pnlm-render-container` — 4 levels away from where all the other hotspot elements lived. `createTooltipFunc` couldn't fix it because it passes the base div, not the render container sprite. A 200ms delayed `querySelectorAll('.pnlm-render-container .pnlm-scene')` with `el.style.visibility = 'visible'` after scene load was needed.
+
+**Debugging checklist for invisible Pannellum elements**:
+1. Check all containers: `#panorama`, `.pnlm-render-container`, `.pnlm-ui`
+2. Check `computedStyle` — visibility, display, opacity, width, height
+3. Check inline styles — Pannellum sets `style.visibility` directly
+4. Check after `setTimeout` — Pannellum may update after your handler
+5. Search for the CSS class globally (`document.querySelectorAll('.my-class')`), not just in the expected parent
+
+---
+
+## 2. Pannellum: Never Use `transform` in Hotspot Keyframes
 
 Pannellum positions every hotspot with an inline `transform` calculated from spherical pitch/yaw. Any CSS keyframe that sets `transform` will rip the hotspot out of position — it lands in the upper-left corner and stops tracking the panorama.
 
