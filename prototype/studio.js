@@ -1,5 +1,5 @@
 /**
- * studio.js — Photosphere Tour Studio (Phase 2)
+ * studio.js - Photosphere Tour Studio (Phase 2)
  *
  * Visual editor for creating 360° photosphere tours.
  * Embed Pannellum for the viewport, capture click coordinates,
@@ -23,6 +23,8 @@ const state = {
     sourceWiki: null,
     /** @type {string|null} wiki display name (Commons, English Wikipedia, etc.) */
     sourceWikiName: null,
+    /** @type {string|null} scene ID that is the starting scene for the tour */
+    startingSceneId: null,
 };
 
 // ── DOM Refs ─────────────────────────────────────────────────────────────────
@@ -47,8 +49,8 @@ const statusCoords = $('status-coords');
  *   - File:Glenstone_24.jpg
  *   - https://commons.wikimedia.org/wiki/File:Glenstone_24.jpg
  *   - https://commons.wikimedia.org/wiki/Special:FilePath/Glenstone_24.jpg
- *   - https://upload.wikimedia.org/... (direct image URL — passed through)
- *   - Glenstone_24.jpg (bare filename — prefixed with File:)
+ *   - https://upload.wikimedia.org/... (direct image URL - passed through)
+ *   - Glenstone_24.jpg (bare filename - prefixed with File:)
  */
 function normalizeImageSource(input) {
     if (!input || typeof input !== 'string') return '';
@@ -68,12 +70,12 @@ function normalizeImageSource(input) {
     const filePathMatch = trimmed.match(/commons\.wikimedia\.org\/wiki\/Special:FilePath\/([^\s\?#]+)/i);
     if (filePathMatch) return 'File:' + filePathMatch[1];
 
-    // Direct image URL (upload.wikimedia.org, etc.) — pass through
+    // Direct image URL (upload.wikimedia.org, etc.) - pass through
     if (/^https?:\/\//.test(trimmed)) {
         return trimmed;
     }
 
-    // Bare filename — prefix with File:
+    // Bare filename - prefix with File:
     return 'File:' + trimmed;
 }
 
@@ -93,9 +95,10 @@ async function addScene(imageUrl, title) {
     state.scenes[id] = scene;
     state.sceneOrder.push(id);
 
-    // If first scene, auto-select
+    // If first scene, auto-select and set as starting scene
     if (!state.activeSceneId) {
         state.activeSceneId = id;
+        state.startingSceneId = id;
     }
 
     // Resolve the image URL to get cached /images/ path for thumbnails
@@ -134,14 +137,17 @@ function renderSceneList() {
     sceneListEl.innerHTML = state.sceneOrder.map(id => {
         const scene = state.scenes[id];
         const active = id === state.activeSceneId ? ' active' : '';
+        const isStarting = id === state.startingSceneId;
         const hotspotCount = scene.hotSpots ? scene.hotSpots.length : 0;
         const thumb = getSceneThumbnail(scene);
         const thumbSpan = thumb
             ? `<span class="thumb" style="background-image:url(${escAttr(thumb)})"></span>`
             : `<span class="thumb"></span>`;
+        const startBadge = isStarting ? '<span class="start-badge" title="Starting scene">⭐</span>' : '';
         return `<li class="${active}" onclick="selectScene('${id}')">
             ${thumbSpan}
             <span class="name">${escHtml(scene.title)}</span>
+            ${startBadge}
             ${hotspotCount > 0 ? `<span class="badge">${hotspotCount}</span>` : ''}
             <button class="delete-btn" onclick="event.stopPropagation();deleteScene('${id}')" title="Delete">×</button>
         </li>`;
@@ -150,11 +156,11 @@ function renderSceneList() {
 
 function getSceneThumbnail(scene) {
     const pano = scene.panorama || '';
-    // Commons cached paths — use same path (browser will scale with CSS)
+    // Commons cached paths - use same path (browser will scale with CSS)
     // NOTE: scene._thumb is the direct Commons URL (CORS-blocked), so we ignore it.
     // The pano is already cached locally at /images/<hash>.jpg and CSS scales it.
     if (pano.startsWith('/images/')) return pano;
-    // Direct URLs — not common in studio (usually resolved to /images/)
+    // Direct URLs - not common in studio (usually resolved to /images/)
     if (pano.startsWith('http')) return pano;
     return '';
 }
@@ -168,7 +174,7 @@ function selectScene(id) {
     renderProperties();
 
     // Update the URL so the current scene is shareable/bookmarkable.
-    // Uses replaceState (not pushState) — scene switches don't create history entries.
+    // Uses replaceState (not pushState) - scene switches don't create history entries.
     const url = new URL(window.location);
     url.searchParams.set('scene', id);
     history.replaceState(null, '', url);
@@ -270,7 +276,7 @@ async function loadSceneIntoViewport(id, viewOverride) {
         // Studio mode: intercept hotspot clicks → open edit modal instead of navigating
         // Pannellum sets onclick directly on the element (not addEventListener), so we
         // wrap it to replace navigation with the edit modal. We do NOT fire Pannellum's
-        // original handler — in edit mode, clicking a hotspot should edit it, not navigate.
+        // original handler - in edit mode, clicking a hotspot should edit it, not navigate.
         let _nextHsIdx = 0;
 
         function wrapHotspotOnclick(el) {
@@ -313,7 +319,7 @@ async function loadSceneIntoViewport(id, viewOverride) {
         updateStatus('Error: ' + err, true);
     });
 
-    // Mouse move — track live coordinates
+    // Mouse move - track live coordinates
     state.pannellumViewer.on('mousemove', (e) => {
         const coords = state.pannellumViewer.mouseEventToCoords(e);
         if (coords) {
@@ -323,7 +329,7 @@ async function loadSceneIntoViewport(id, viewOverride) {
         }
     });
 
-    // Click — capture coordinates (normalize yaw to [-180, 180] per spec)
+    // Click - capture coordinates (normalize yaw to [-180, 180] per spec)
     state.pannellumViewer.on('mousedown', (e) => {
         const coords = state.pannellumViewer.mouseEventToCoords(e);
         if (coords) {
@@ -335,7 +341,7 @@ async function loadSceneIntoViewport(id, viewOverride) {
             addHotspotBtn.style.display = 'block';
             hsCoordPreview.textContent =
                 `Yaw: ${nYaw.toFixed(2)}°  Pitch: ${coords[0].toFixed(2)}°`;
-            updateStatus(`Coordinates captured — click "Place Hotspot Here" to add`);
+            updateStatus(`Coordinates captured - click "Place Hotspot Here" to add`);
         }
     });
 
@@ -376,18 +382,29 @@ function handleSetDefaultView() {
     }
     const viewer = state.pannellumViewer;
     const scene = state.scenes[state.activeSceneId];
-    
+
     // Capture current view from Pannellum
     scene.yaw = normalizeYaw(viewer.getYaw());
     scene.pitch = viewer.getPitch();
     scene.hfov = viewer.getHfov();
-    
+
     // Update the input fields to reflect new values
     $('prop-yaw').value = scene.yaw.toFixed(2);
     $('prop-pitch').value = scene.pitch.toFixed(2);
     $('prop-hfov').value = scene.hfov.toFixed(0);
-    
+
     updateStatus(`Default view set for "${scene.title}"`);
+}
+
+function handleSetStartingScene() {
+    if (!state.activeSceneId) {
+        updateStatus('No scene selected', true);
+        return;
+    }
+    const scene = state.scenes[state.activeSceneId];
+    state.startingSceneId = state.activeSceneId;
+    renderSceneList();
+    updateStatus(`"${scene.title}" set as starting scene`);
 }
 
 function handleHsSetCurrentView() {
@@ -396,18 +413,18 @@ function handleHsSetCurrentView() {
         return;
     }
     const viewer = state.pannellumViewer;
-    
+
     // Capture current view from Pannellum
     const yaw = normalizeYaw(viewer.getYaw());
     const pitch = viewer.getPitch();
-    
+
     // Update state.capturedCoords so confirmAddHotspot uses the new values
     state.capturedCoords = { pitch, yaw };
-    
+
     // Update the modal display
     $('modal-hs-pitch').textContent = pitch.toFixed(2);
     $('modal-hs-yaw').textContent = yaw.toFixed(2);
-    
+
     updateStatus('Coordinates updated to current view');
 }
 
@@ -540,7 +557,7 @@ function populateTargetSceneSelect() {
         .map(sid => `<option value="${sid}">${escHtml(state.scenes[sid].title)}</option>`)
         .join('');
     if (select.options.length === 0) {
-        select.innerHTML = '<option value="">No other scenes — add another scene first</option>';
+        select.innerHTML = '<option value="">No other scenes - add another scene first</option>';
     }
 }
 
@@ -654,7 +671,7 @@ async function confirmAddHotspot() {
         updateStatus(`Hotspot added: ${hs.text}`);
     }
 
-    // Validate the hotspot immediately — warn if required fields are missing
+    // Validate the hotspot immediately - warn if required fields are missing
     const hsWarnings = validateHotspot(hs, state.scenes[sceneId].title, state.scenes[sceneId].hotSpots.indexOf(hs));
     if (hsWarnings.length > 0) {
         updateStatus('⚠️ ' + hsWarnings[0], true);
@@ -734,6 +751,7 @@ function importTourData(data) {
         state.sceneFadeDuration = data.default.sceneFadeDuration || state.sceneFadeDuration;
         if (data.default.firstScene && state.scenes[data.default.firstScene]) {
             state.activeSceneId = data.default.firstScene;
+            state.startingSceneId = data.default.firstScene;
         }
     }
 
@@ -753,7 +771,7 @@ function importTourData(data) {
         renderProperties();
     }
 
-    // Validate imported data — warn about hotspots with missing fields
+    // Validate imported data - warn about hotspots with missing fields
     const warnings = validateTour();
     let msg = `Imported: ${state.sceneOrder.length} scenes`;
     if (warnings.length > 0) {
@@ -804,11 +822,11 @@ async function importTour() {
 // INTEGRITY CHECK POLICY (see CAVEATS.md §0):
 // Every data boundary (add, edit, import, export, preview) must validate
 // hotspot completeness. When adding a new subtype or field:
-//   1. Add to confirmAddHotspot()  — storage
-//   2. Add to importTourData()     — import mapping
-//   3. Add to exportTour()         — export mapping
-//   4. Add to previewTour()        — preview mapping
-//   5. Add to validateHotspot()    — integrity check (THIS FUNCTION)
+//   1. Add to confirmAddHotspot()  - storage
+//   2. Add to importTourData()     - import mapping
+//   3. Add to exportTour()         - export mapping
+//   4. Add to previewTour()        - preview mapping
+//   5. Add to validateHotspot()    - integrity check (THIS FUNCTION)
 //
 // Missing any step = silent data loss. All warnings go to status bar + console.
 
@@ -877,9 +895,7 @@ function buildExportJSON(scope) {
         scenes[id] = resolved;
     }
 
-    const firstScene = scope === 'current' && state.activeSceneId
-        ? state.activeSceneId
-        : (state.activeSceneId || state.sceneOrder[0] || '');
+    const firstScene = state.startingSceneId || state.sceneOrder[0] || '';
 
     return {
         default: {
@@ -899,7 +915,7 @@ function updateExportTextarea() {
 }
 
 async function exportTour() {
-    // Validate before resolving — catch missing fields early
+    // Validate before resolving - catch missing fields early
     const warnings = validateTour();
     if (warnings.length > 0) {
         updateStatus('⚠️ ' + warnings[0] + (warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ''), true);
@@ -908,7 +924,7 @@ async function exportTour() {
 
     updateStatus('Resolving images...');
 
-    // Resolve all scene data once — stored in _exportResolvedScenes for radio toggling.
+    // Resolve all scene data once - stored in _exportResolvedScenes for radio toggling.
     // Use _original (true Commons URL) for portable exports. Unlike preview (which needs
     // same-origin cached paths), exported JSON is consumed elsewhere so it must use the
     // canonical Commons upload URL.
@@ -950,7 +966,7 @@ function copyJSON() {
     navigator.clipboard.writeText(text).then(() => {
         updateStatus('✅ JSON copied to clipboard');
     }).catch(() => {
-        updateStatus('Failed to copy — select and copy manually', true);
+        updateStatus('Failed to copy - select and copy manually', true);
     });
 }
 
@@ -974,9 +990,9 @@ function downloadJSON() {
  */
 async function resolvePanoramaForPreview(panorama) {
     if (!panorama || typeof panorama !== 'string') return panorama;
-    // Already a /images/ cache path — use directly
+    // Already a /images/ cache path - use directly
     if (panorama.startsWith('/images/')) return panorama;
-    // Direct URL — use directly
+    // Direct URL - use directly
     if (panorama.startsWith('http://') || panorama.startsWith('https://')) {
         // If it's a Commons File page or Special:FilePath URL, resolve via server
         if (/commons\.wikimedia\.org\/wiki\/File:/i.test(panorama)) {
@@ -988,7 +1004,7 @@ async function resolvePanoramaForPreview(panorama) {
         }
         return panorama;
     }
-    // File: reference — resolve via server
+    // File: reference - resolve via server
     const file = panorama.match(/^File:\s*(.+)$/i)?.[1];
     if (file) {
         const resp = await fetch(`/api/resolve?file=${encodeURIComponent(file)}`);
@@ -1034,7 +1050,7 @@ async function previewTour() {
 
     const tour = {
         default: {
-            firstScene: state.activeSceneId || state.sceneOrder[0] || '',
+            firstScene: state.startingSceneId || state.sceneOrder[0] || '',
             author: state.defaultAuthor,
             sceneFadeDuration: state.sceneFadeDuration,
             autoLoad: true,
@@ -1069,9 +1085,12 @@ function setupPropertyBindings() {
             updateStatus('Properties updated');
         });
     });
-    
+
     // Set default view button
     $('set-default-view-btn').addEventListener('click', handleSetDefaultView);
+
+    // Set starting scene button
+    $('set-starting-scene-btn').addEventListener('click', handleSetStartingScene);
 }
 
 // ── Modal Helpers ────────────────────────────────────────────────────────────
@@ -1168,7 +1187,7 @@ function init() {
     $('modal-copy-json').addEventListener('click', copyJSON);
     $('modal-download-json').addEventListener('click', downloadJSON);
 
-    // Export scope radio buttons — regenerate JSON on toggle
+    // Export scope radio buttons - regenerate JSON on toggle
     document.querySelectorAll('input[name="export-scope"]').forEach(radio => {
         radio.addEventListener('change', updateExportTextarea);
     });
@@ -1186,7 +1205,7 @@ function init() {
     // Click outside modal to close
     setupModalDismiss();
 
-    updateStatus('Ready — add a scene to get started');
+    updateStatus('Ready - add a scene to get started');
 
     // Auto-import from URL parameter ?page=...
     const urlParams = new URLSearchParams(window.location.search);

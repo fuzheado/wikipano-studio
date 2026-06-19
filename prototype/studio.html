@@ -71,6 +71,7 @@ body {
    elements in the DOM have background-image set (never empty-with-bg). */
 #scene-list li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #scene-list li .badge { font-size: 0.65rem; background: var(--blue); padding: 1px 6px; border-radius: 8px; color: #fff; }
+#scene-list li .start-badge { font-size: 0.75rem; margin-left: 4px; }
 #scene-list li .delete-btn {
     opacity: 0; background: none; border: none; color: var(--muted);
     cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 3px;
@@ -424,6 +425,8 @@ body {
             </div>
             <button id="set-default-view-btn" style="margin-top:8px;width:100%;">🔄 Set as Default View</button>
             <div class="hint">Default view when loading this scene</div>
+            <button id="set-starting-scene-btn" style="margin-top:8px;width:100%;">⭐ Set as Starting Scene</button>
+            <div class="hint">First scene when tour loads</div>
         </div>
 
         <div class="panel-section">
