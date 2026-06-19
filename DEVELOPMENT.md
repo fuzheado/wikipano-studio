@@ -98,6 +98,7 @@ photospheres/
 ### Verified Working
 
 - Tour API fetches wiki page, auto-detects format, parses, resolves files
+- **Multi-wiki support**: `prefix:Page` format (e.g., `en:Wikipedia_tour`), default `commons:`
 - Image caching downloads Commons images, serves from local `/images/` directory
 - Pannellum renders tours with clickable scene hotspots and info hotspots
 - Sidebar shows scene list, author info, link to source wiki page
@@ -166,6 +167,15 @@ photospheres/
 - [ ] Handle multires tiling for large tour images (reuse existing pipeline)
 - [ ] OAuth-authenticated save-to-wiki from Studio
 - [ ] Documentation: how to create, edit, and share a tour
+
+### Phase 2.6: Scope & Compliance (2026-06-18)
+**Goal**: Multi-wiki support + Wikimedia content restrictions
+
+- [x] **FR-01: Multi-wiki tour loading** — `prefix:Page` format (e.g., `en:Wikipedia_tour`), default `commons:`
+- [ ] FR-02: Audio/video source restriction (Commons only + `ALLOW_ALL_SOURCES` flag)
+- [ ] FR-03: Panorama source validation (Commons only)
+- [ ] FR-04: Info hotspot external link warning (visual indicator)
+- [ ] FR-05: Export validation (compliance rules)
 
 ### Phase 3: Rich Features & Migration
 **Goal**: Production-grade experience matching commercial tools

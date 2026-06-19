@@ -19,6 +19,10 @@ const state = {
     sceneFadeDuration: 1000,
     /** @type {number|null} index of hotspot being edited, null = adding new */
     editingHotspotIndex: null,
+    /** @type {string|null} wiki prefix (commons, en, de, etc.) */
+    sourceWiki: null,
+    /** @type {string|null} wiki display name (Commons, English Wikipedia, etc.) */
+    sourceWikiName: null,
 };
 
 // ── DOM Refs ─────────────────────────────────────────────────────────────────
@@ -729,6 +733,12 @@ function importTourData(data) {
         state.activeSceneId = state.sceneOrder[0];
     }
 
+    // Store source wiki info from _meta
+    if (data._meta) {
+        state.sourceWiki = data._meta.sourceWiki || null;
+        state.sourceWikiName = data._meta.sourceWikiName || null;
+    }
+
     renderSceneList();
     if (state.activeSceneId) {
         loadSceneIntoViewport(state.activeSceneId);
@@ -757,7 +767,7 @@ async function importTour() {
 
         // Check if it's a wiki page title (no JSON brackets)
         if (!input.startsWith('{') && !input.startsWith('[')) {
-            updateStatus('Fetching tour from wiki...');
+            updateStatus(`Fetching tour: ${input}...`);
             const resp = await fetch(`/api/tour?page=${encodeURIComponent(input)}`);
             if (!resp.ok) {
                 const err = await resp.json();
@@ -770,6 +780,11 @@ async function importTour() {
 
         importTourData(data);
         modalHide('modal-import');
+
+        // Show source wiki if loaded from wiki
+        if (data._meta?.sourceWikiName) {
+            updateStatus(`Imported from ${data._meta.sourceWikiName}`);
+        }
 
     } catch (e) {
         updateStatus('Import error: ' + e.message, true);
@@ -1169,7 +1184,7 @@ function init() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoPage = urlParams.get('page');
     if (autoPage) {
-        updateStatus(`Loading tour from Commons: ${autoPage}...`);
+        updateStatus(`Loading tour: ${autoPage}...`);
         fetch(`/api/tour?page=${encodeURIComponent(autoPage)}`)
             .then(r => {
                 if (!r.ok) return r.json().then(e => { throw new Error(e.error); });
@@ -1177,6 +1192,9 @@ function init() {
             })
             .then(data => {
                 importTourData(data);
+                // Show source wiki in status
+                const wikiName = data._meta?.sourceWikiName || 'Commons';
+                updateStatus(`Loaded from ${wikiName}: ${autoPage}`);
                 // Jump to a specific scene if ?scene=... is in the URL
                 const targetScene = urlParams.get('scene');
                 if (targetScene && state.scenes[targetScene]) {

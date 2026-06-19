@@ -616,10 +616,27 @@ function renderTourInfo() {
     info.style.display = 'block';
     const meta = tourData._meta || {};
     const author = (tourData.default && tourData.default.author) || 'Unknown';
+    
+    // Build wiki link based on source wiki
+    const wikiHost = {
+        commons: 'commons.wikimedia.org',
+        en: 'en.wikipedia.org',
+        de: 'de.wikipedia.org',
+        fr: 'fr.wikipedia.org',
+        es: 'es.wikipedia.org',
+        it: 'it.wikipedia.org',
+        ja: 'ja.wikipedia.org',
+        zh: 'zh.wikipedia.org',
+        ru: 'ru.wikipedia.org',
+        pt: 'pt.wikipedia.org',
+        wikidata: 'www.wikidata.org',
+    }[meta.sourceWiki] || 'commons.wikimedia.org';
+    const wikiName = meta.sourceWikiName || 'Commons';
+    
     info.innerHTML = `
         <p><span class="label">Author:</span> ${escapeHTML(author)}</p>
         <p><span class="label">Scenes:</span> ${meta.totalScenes || Object.keys(tourData.scenes || {}).length}</p>
-        <p><span class="label">Source:</span> <a href="https://commons.wikimedia.org/wiki/${encodeURIComponent(meta.source || '')}" target="_blank" style="color:var(--highlight);">View on Commons</a></p>
+        <p><span class="label">Source:</span> <a href="https://${wikiHost}/wiki/${encodeURIComponent(meta.source || '')}" target="_blank" style="color:var(--highlight);">View on ${escapeHTML(wikiName)}</a></p>
     `;
 }
 

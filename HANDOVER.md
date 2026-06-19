@@ -27,6 +27,7 @@
 | Icon size variants (`iconStyle`) | ✅ |
 | **Mobile gyroscope toggle** | ✅ |
 | **Toolforge deployment** | ✅ **wikipano.toolforge.org** |
+| **Multi-wiki tour loading** | ✅ FR-01 |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
@@ -34,6 +35,7 @@
 - **Pannellum 2.5.7**: All hotspots now use `cssClass` with custom CSS `::after` for icons
 - **Class tagging**: `cssClass` set for ALL hotspot types (scene/info/audio/video/wp-card-hotspot)
 - **5-step rule**: Every new field must touch storage, import, export, preview, validation.
+- **Multi-wiki support**: Page parameter accepts `prefix:Page` format (e.g., `en:Wikipedia_tour`). Default: `commons:`. Supported: commons, en, de, fr, es, it, ja, zh, ru, pt, wikidata.
 
 ### Pannellum 2.5.7 Gotchas
 1. All hotspots use `cssClass` + custom CSS with `::after` for icons (no longer rely on Pannellum sprites)
@@ -68,12 +70,18 @@ playwright-cli console
 - https://wikipano.toolforge.org/tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=Museum
 - https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
 
+### Multi-Wiki Examples
+- `commons:User:Fuzheado/Panellum_Tour` — Commons (default)
+- `en:Wikipedia:Featured_tours/Museum` — English Wikipedia
+- `de:Wikipedia:Tour/Museum` — German Wikipedia
+
 ### Local
 ```bash
 cd /Users/alih/Documents/ai/photospheres/prototype
 node tour_server.mjs
 # Open http://localhost:8765/studio.html
 # Demo: http://localhost:8765/studio.html?page=User:Fuzheado/Panellum_Tour
+# Multi-wiki: http://localhost:8765/studio.html?page=en:Wikipedia_tour
 ```
 
 Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images and breaks previews. The images cache is now managed with 1-hour TTL.

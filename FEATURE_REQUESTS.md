@@ -612,7 +612,7 @@ Some features depend on others:
 
 ### FR-01: Multi-Wiki Tour Loading
 **Priority**: High  
-**Status**: ⬜ Not started  
+**Status**: ✅ Implemented (2026-06-18)  
 **Description**: Support loading tour definitions from any Wikimedia project using `prefix:Page` format. Default to `commons:` for backward compatibility.
 
 **Prefixes**: `commons:`, `en:`, `de:`, `fr:`, `es:`, `ja:`, `zh:`, `ru:`, `pt:`, `it:`, etc.

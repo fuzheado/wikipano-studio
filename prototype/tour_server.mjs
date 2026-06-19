@@ -32,6 +32,52 @@ const CACHE_TTL     = 3600 * 1000; // 1 hour
 const MAX_IMG_WIDTH = 4096;
 const USER_AGENT    = 'PhotosphereTour/0.1 (Wikimedia Photosphere Tours; https://github.com/.../photospheres)';
 
+// ── Multi-Wiki Support ─────────────────────────────────────────────────────
+
+/**
+ * Map of wiki prefixes to their API endpoints.
+ * Default is Commons (no prefix required).
+ * Any valid Wikimedia project prefix is accepted.
+ */
+const WIKI_PREFIXES = {
+    commons: { api: 'https://commons.wikimedia.org/w/api.php', index: 'https://commons.wikimedia.org/w/index.php', name: 'Commons' },
+    en:      { api: 'https://en.wikipedia.org/w/api.php', index: 'https://en.wikipedia.org/w/index.php', name: 'English Wikipedia' },
+    de:      { api: 'https://de.wikipedia.org/w/api.php', index: 'https://de.wikipedia.org/w/index.php', name: 'Deutsch Wikipedia' },
+    fr:      { api: 'https://fr.wikipedia.org/w/api.php', index: 'https://fr.wikipedia.org/w/index.php', name: 'French Wikipedia' },
+    es:      { api: 'https://es.wikipedia.org/w/api.php', index: 'https://es.wikipedia.org/w/index.php', name: 'Spanish Wikipedia' },
+    it:      { api: 'https://it.wikipedia.org/w/api.php', index: 'https://it.wikipedia.org/w/index.php', name: 'Italian Wikipedia' },
+    ja:      { api: 'https://ja.wikipedia.org/w/api.php', index: 'https://ja.wikipedia.org/w/index.php', name: 'Japanese Wikipedia' },
+    zh:      { api: 'https://zh.wikipedia.org/w/api.php', index: 'https://zh.wikipedia.org/w/index.php', name: 'Chinese Wikipedia' },
+    ru:      { api: 'https://ru.wikipedia.org/w/api.php', index: 'https://ru.wikipedia.org/w/index.php', name: 'Russian Wikipedia' },
+    pt:      { api: 'https://pt.wikipedia.org/w/api.php', index: 'https://pt.wikipedia.org/w/index.php', name: 'Portuguese Wikipedia' },
+    wikidata:{ api: 'https://www.wikidata.org/w/api.php', index: 'https://www.wikidata.org/w/index.php', name: 'Wikidata' },
+};
+
+/**
+ * Parse a page parameter and extract wiki prefix + page title.
+ * @param {string} page - e.g. "commons:User:Fuzheado/Tour" or "en:Wikipedia_tour" or "User:Fuzheado/Tour"
+ * @returns {{ wiki: string, pageTitle: string, wikiConfig: object }}
+ */
+function parseWikiPage(page) {
+    const colonIdx = page.indexOf(':');
+    if (colonIdx > 0) {
+        const prefix = page.substring(0, colonIdx).toLowerCase();
+        if (prefix in WIKI_PREFIXES) {
+            return {
+                wiki: prefix,
+                pageTitle: page.substring(colonIdx + 1),
+                wikiConfig: WIKI_PREFIXES[prefix],
+            };
+        }
+    }
+    // No valid prefix found — default to Commons
+    return {
+        wiki: 'commons',
+        pageTitle: page,
+        wikiConfig: WIKI_PREFIXES.commons,
+    };
+}
+
 // ── MIME map ────────────────────────────────────────────────────────────────
 
 const MIME = {
@@ -73,13 +119,19 @@ async function serveStatic(res, pathname) {
 
 // ── Wiki Fetch ──────────────────────────────────────────────────────────────
 
-async function fetchWikiPage(title) {
-    const url = `${COMMONS_INDEX}?${new URLSearchParams({ title, action: 'raw' })}`;
+/**
+ * Fetch raw content from a wiki page.
+ * @param {string} title - Page title (without prefix)
+ * @param {object} wikiConfig - Wiki configuration { api, index, name }
+ * @returns {string} Raw page content
+ */
+async function fetchWikiPage(title, wikiConfig = WIKI_PREFIXES.commons) {
+    const url = `${wikiConfig.index}?${new URLSearchParams({ title, action: 'raw' })}`;
     const resp = await fetch(url, {
         headers: { 'User-Agent': USER_AGENT },
         signal: AbortSignal.timeout(15000),
     });
-    if (!resp.ok) throw new Error(`Failed to fetch wiki page "${title}": HTTP ${resp.status}`);
+    if (!resp.ok) throw new Error(`Failed to fetch wiki page "${title}" from ${wikiConfig.name}: HTTP ${resp.status}`);
     return await resp.text();
 }
 
@@ -184,20 +236,21 @@ async function jsonCacheGet(key, compute) {
     return value;
 }
 
-async function resolveCommonsFile(filename) {
-    return jsonCacheGet(`file:${filename}`, async () => {
+async function resolveCommonsFile(filename, wikiConfig = WIKI_PREFIXES.commons) {
+    const cacheKey = `${wikiConfig.name}:${filename}`;
+    return jsonCacheGet(`file:${cacheKey}`, async () => {
         // Request both thumburl AND url in same call — when thumburl is present,
         // ii.url correctly returns the original upload URL (not the thumb)
-        const resp = await fetch(`${COMMONS_API}?${new URLSearchParams({
+        const resp = await fetch(`${wikiConfig.api}?${new URLSearchParams({
             action: 'query', titles: filename, prop: 'imageinfo',
             iiprop: 'url|size|thumburl', format: 'json',
         })}`, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(10000) });
-        if (!resp.ok) throw new Error(`Commons API error for ${filename}`);
+        if (!resp.ok) throw new Error(`${wikiConfig.name} API error for ${filename}`);
         const data = await resp.json();
         const page = Object.values(data?.query?.pages || {})[0];
-        if (page?.missing || page?.invalid) throw new Error(`File not found: ${filename}`);
+        if (page?.missing || page?.invalid) throw new Error(`File not found: ${filename} on ${wikiConfig.name}`);
         const ii = page?.imageinfo?.[0];
-        if (!ii) throw new Error(`No image info for ${filename}`);
+        if (!ii) throw new Error(`No image info for ${filename} on ${wikiConfig.name}`);
         return {
             // For the studio's local cache: use thumburl if available, otherwise url
             url: ii.thumburl || ii.url,
@@ -267,10 +320,10 @@ function makeThumbUrl(url) {
     return url;
 }
 
-async function resolvePanorama(panorama) {
+async function resolvePanorama(panorama, wikiConfig = WIKI_PREFIXES.commons) {
     const fileMatch = panorama.match(/^File:\s*(.+)$/i);
     if (fileMatch) {
-        const result = await resolveCommonsFile('File:' + fileMatch[1].trim());
+        const result = await resolveCommonsFile('File:' + fileMatch[1].trim(), wikiConfig);
         return cacheImage(result.url);
     }
     if (panorama.startsWith('http://') || panorama.startsWith('https://')) {
@@ -297,9 +350,12 @@ function validateTourJSON(tour) {
 
 // ── Tour API Handler ────────────────────────────────────────────────────────
 
-async function handleTourAPI(res, pageTitle) {
+async function handleTourAPI(res, rawPageTitle) {
     try {
-        const rawContent = await fetchWikiPage(pageTitle);
+        // Parse wiki prefix from page title
+        const { wiki, pageTitle, wikiConfig } = parseWikiPage(rawPageTitle);
+        
+        const rawContent = await fetchWikiPage(pageTitle, wikiConfig);
         const { format, data: tour } = extractTourDefinition(rawContent);
 
         const validationError = validateTourJSON(tour);
@@ -310,7 +366,7 @@ async function handleTourAPI(res, pageTitle) {
 
         for (const [sceneId, scene] of Object.entries(tour.scenes)) {
             try {
-                const resolved = await resolvePanorama(scene.panorama);
+                const resolved = await resolvePanorama(scene.panorama, wikiConfig);
                 scene.panorama = resolved.url;
                 scene._thumb = resolved.thumb || resolved.url;
                 scene._original = resolved.original || resolved.url;
@@ -321,7 +377,9 @@ async function handleTourAPI(res, pageTitle) {
         }
 
         tour._meta = {
-            source: pageTitle,
+            source: rawPageTitle,
+            sourceWiki: wiki,
+            sourceWikiName: wikiConfig.name,
             sourceFormat: format,
             resolvedAt: new Date().toISOString(),
             scenesResolved: resolvedCount,
@@ -350,12 +408,14 @@ const server = createServer(async (req, res) => {
         return handleTourAPI(res, pageTitle);
     }
 
-    // API: /api/resolve?file=... — resolve a single Commons file to image URL
+    // API: /api/resolve?file=...&wiki=... — resolve a single file to image URL
     if (pathname === '/api/resolve' && req.method === 'GET') {
         const file = url.searchParams.get('file');
         if (!file) return jsonResponse(res, 400, { error: 'Missing required parameter: file' });
+        const wikiParam = url.searchParams.get('wiki') || 'commons';
+        const wikiConfig = WIKI_PREFIXES[wikiParam.toLowerCase()] || WIKI_PREFIXES.commons;
         try {
-            const result = await resolveCommonsFile('File:' + file);
+            const result = await resolveCommonsFile('File:' + file, wikiConfig);
             // Cache the thumb (from result.url) locally; use original for original field
             const cached = await cacheImage(result.url);
             cached.original = result.original; // always store the direct original URL
@@ -428,5 +488,8 @@ server.listen(PORT, () => {
     console.log(`\n🔭  Wikimedia Photosphere Tour — Phase 1 Prototype`);
     console.log(`    Viewer: http://localhost:${PORT}/tour_viewer.html`);
     console.log(`    API:    http://localhost:${PORT}/api/tour?page=User:Fuzheado/Panellum_Tour`);
+    console.log(`            http://localhost:${PORT}/api/tour?page=en:Wikipedia_tour`);
     console.log(`    Images: http://localhost:${PORT}/images/ (cached from Commons)\n`);
+    console.log(`    Multi-wiki: commons:, en:, de:, fr:, es:, it:, ja:, zh:, ru:, pt:, wikidata:`);
+    console.log(`    (Default: commons — no prefix required)\n`);
 });
