@@ -43,6 +43,7 @@ A full authoring pipeline for collaborative photosphere tours:
 - Dual TOML + JSON format with auto-detection
 - Pannellum rendering with scene transitions
 - Wikipedia rich info cards on hotspot hover
+- **Mobile gyroscope toggle** (🧭 button for device orientation control)
 
 ### Phase 2: Visual Studio ✅
 - Click in the 360° viewport to capture hotspot coordinates (yaw auto-normalized to [-180, 180] per Pannellum spec)
@@ -52,10 +53,27 @@ A full authoring pipeline for collaborative photosphere tours:
 - Export resolves panorama paths to original Commons URLs (not cached `/images/` paths)
 - Preview tours in a new tab
 - Red ➤ / blue ⓘ hotspot icons in the viewport
+- Audio 🎵 + Video 🎬 hotspot support (Commons + YouTube)
+- Hotspot icon size variants (`iconStyle`: normal, small, large, huge)
+- Integrity checks at all data boundaries
 - JSON validator: `node scripts/validate-pannellum.mjs <file.json> [--fix]`
+
+### Phase 2.5: Toolforge Deployment ✅
+- Live at **[wikipano.toolforge.org](https://wikipano.toolforge.org)**
+- Tour Viewer: https://wikipano.toolforge.org/tour_viewer.html
+- Visual Studio: https://wikipano.toolforge.org/studio.html
+- Demo tour: https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- `{{PanoTour}}` template on Commons for wiki page links
+- Gyroscope enabled over HTTPS for mobile devices
 
 ## Quick Start
 
+### Live (Toolforge)
+The tool is deployed and running:
+- **Tour Viewer**: https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- **Visual Studio**: https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
+
+### Local Development
 ```bash
 cd prototype
 node tour_server.mjs
@@ -89,8 +107,10 @@ photospheres/
 ├── DEBUGGING.md            # Visual debugging with playwright-cli
 ├── CAVEATS.md              # Gotchas & lessons learned (read before touching hotspot CSS or paths)
 ├── HANDOVER.md             # Session log + current-state quick reference
+├── DEPLOYMENT.md           # Step-by-step deployment guide for Toolforge + Commons templates
 ├── tests/                  # Playwright test suite
-│   └── studio-behaviors.spec.js  # Studio interaction behavior tests
+│   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
+│   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
 ├── playwright.config.js    # Playwright configuration
 ├── scripts/                # Utility scripts
 │   ├── dump-state.js       # Playwright state introspection
@@ -147,7 +167,7 @@ panorama = "File:My_Photo.jpg"
 |---|---|---|
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
 | 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
-| 2.5 — Deploy | Next | Deploy as new Toolforge tool (Node.js native), `{{PanoTour}}` template |
+| 2.5 — Deploy | ✅ **Done** | Deployed at **wikipano.toolforge.org**, `{{PanoTour}}` template on Commons |
 | 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery, OAuth save |
 
 ## License

@@ -1,92 +1,89 @@
-# Phase 1 Prototype: Wiki-Based Photosphere Tour Viewer
+# Phase 1 & 2 Prototype: Wikimedia Photosphere Tour System
 
 ## What This Does
 
-Enables viewing a 360° photosphere tour defined as a JSON page on Wikimedia Commons. The tour JSON lives on a wiki page (collaboratively editable), and this prototype resolves `File:` references to actual image URLs and renders the tour using Pannellum.
+Enables viewing and authoring 360° photosphere tours defined as JSON/TOML pages on Wikimedia Commons. The Node.js server resolves `File:` references to actual image URLs and renders tours using Pannellum.
 
 ## Architecture
 
 ```
-Wiki Page (JSON) ──→ tour_config.php (resolves File: refs) ──→ Pannellum (renders tour)
+Wiki Page (JSON/TOML) ──→ tour_server.mjs (resolves File: refs, caches images) ──→ Pannellum (renders tour)
+                                       │
+                                       └──→ Studio (visual editor)
 ```
 
 ## Quick Start
 
-### Prerequisites
-- PHP 7.4+ with `allow_url_fopen` enabled (or cURL extension)
-- A web browser with WebGL support
+### Live (Toolforge)
+- **Tour Viewer**: https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- **Visual Studio**: https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
 
-### Run Locally
+### Local Development
+
+**Requires**: Node.js 18+ (zero external dependencies)
 
 ```bash
 cd prototype
-php -S localhost:8000
+node tour_server.mjs
+# Open http://localhost:8765/studio.html
+# Demo: http://localhost:8765/studio.html?page=User:Fuzheado/Panellum_Tour
 ```
 
-Then open: **http://localhost:8000/tour_viewer.html**
-
-The demo auto-loads the example tour at `User:Fuzheado/Panellum_Tour` on Commons.
+The demo auto-loads the Banned Books Museum ↔ Tallinn road tour from `User:Fuzheado/Panellum_Tour` on Commons.
 
 ### Using a Different Tour
 
-Enter any Commons wiki page title containing tour JSON, e.g.:
+Enter any Commons wiki page title containing tour JSON/TOML, e.g.:
 - `User:Fuzheado/Panellum_Tour` (the demo tour)
 - `User:YourName/MyTour` (your own tour)
 
 Or use the URL hash:
 ```
-http://localhost:8000/tour_viewer.html#User:Fuzheado/Panellum_Tour
+http://localhost:8765/tour_viewer.html#User:YourName/MyTour
 ```
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `tour_server.mjs` | Node.js server: API, static files, image caching (entry point) |
+| `tour_viewer.html` | Pannellum viewer with scene navigation + Wikipedia cards |
+| `studio.html` | Visual tour editor UI |
+| `studio.js` | Editor logic (~650 lines) |
+| `tour_config.php` | Standalone PHP equivalent (reference only, not used) |
+| `sample_tour.json` | Example tour definition |
+| `HOW_TO_CREATE_A_TOUR.txt` | Tutorial for wiki-based tour authoring |
+| `cache/` | Auto-created directory for cached Commons images |
+| `images/` | Auto-created directory for served cached images |
+
+## Features
+
+### Viewing
+- Pannellum-based 360° rendering with scene transitions
+- Wikipedia rich info cards on hotspot hover
+- Mobile gyroscope toggle (🧭 button, requires HTTPS)
+- Audio 🎵 and Video 🎬 hotspot support
+- Scene sidebar with thumbnails
+
+### Authoring
+- Click in 360° viewport to place hotspots
+- Scene management (add/delete/reorder)
+- Import from Commons wiki pages or paste JSON
+- Export as JSON (download or copy, full or current scene)
+- Preview via localStorage
+- Yaw auto-normalized to [-180, 180]
+- Icon size variants (`iconStyle`: normal, small, large, huge)
+- Integrity checks at all data boundaries
 
 ## Creating a New Tour
 
-1. Create a wiki page on Commons (e.g., `User:YourName/MyTour`)
-2. Add JSON in this format:
+See `HOW_TO_CREATE_A_TOUR.txt` for TOML and JSON format templates.
 
-```json
-{
-    "default": {
-        "firstScene": "scene1",
-        "author": "Your Name",
-        "sceneFadeDuration": 1000
-    },
-    "scenes": {
-        "scene1": {
-            "title": "My First Scene",
-            "hfov": 110,
-            "pitch": 0,
-            "yaw": 0,
-            "type": "equirectangular",
-            "panorama": "File:Your_360_Photo.jpg",
-            "hotSpots": [
-                {
-                    "pitch": 0,
-                    "yaw": 45,
-                    "type": "scene",
-                    "text": "Go to Scene 2",
-                    "sceneId": "scene2"
-                },
-                {
-                    "pitch": -10,
-                    "yaw": -30,
-                    "type": "info",
-                    "text": "Learn more on Wikipedia",
-                    "URL": "https://en.wikipedia.org/wiki/Example"
-                }
-            ]
-        },
-        "scene2": {
-            "title": "My Second Scene",
-            "type": "equirectangular",
-            "panorama": "File:Another_Photo.jpg",
-            "hotSpots": []
-        }
-    }
-}
-```
-
-3. Save the page
-4. Load it in the viewer: `http://localhost:8000/tour_viewer.html#User:YourName/MyTour`
+Quick start:
+1. Upload 360° photos to Commons
+2. Create a wiki page at `User:YourName/YourTour`
+3. Paste the TOML or JSON tour definition
+4. View at `http://localhost:8765/tour_viewer.html#User:YourName/YourTour`
 
 ## Tour JSON Format
 
@@ -129,81 +126,81 @@ http://localhost:8000/tour_viewer.html#User:Fuzheado/Panellum_Tour
     "pitch": -15,
     "yaw": -30,
     "type": "info",
-    "text": "The Satanic Verses",
-    "URL": "https://en.wikipedia.org/wiki/The_Satanic_Verses"
+    "text": "Learn more",
+    "URL": "https://en.wikipedia.org/wiki/Example"
 }
 ```
 
+**Audio hotspot** (plays sound):
+```json
+{
+    "pitch": -10,
+    "yaw": 20,
+    "type": "info",
+    "hotspotSubtype": "audio",
+    "text": "Listen",
+    "audioUrl": "https://upload.wikimedia.org/wikipedia/commons/.../file.ogg"
+}
+```
+
+**Video hotspot** (popup player):
+```json
+{
+    "pitch": -5,
+    "yaw": 45,
+    "type": "info",
+    "hotspotSubtype": "video",
+    "text": "Watch",
+    "videoUrl": "https://upload.wikimedia.org/wikipedia/commons/.../video.webm"
+}
+```
+
+**Icon size variant** (applies to any hotspot type):
+```json
+{
+    "iconStyle": "large",
+    ...
+}
+```
+Values: `normal` (default, 44-50px), `small` (32px), `large` (60px), `huge` (80px).
+
 For a full reference of Pannellum configuration options, see:
 https://pannellum.org/documentation/reference/
-
-## Files
-
-| File | Purpose |
-|---|---|
-| `tour_config.php` | Backend: fetches wiki page, resolves File: refs, returns JSON |
-| `tour_viewer.html` | Frontend: Pannellum viewer with scene navigation sidebar |
-| `cache/` | Auto-created directory for resolved file URL cache |
 
 ## How File Resolution Works
 
 When a scene has `"panorama": "File:Example.jpg"`:
 
-1. The backend calls the Commons API (`action=query&prop=imageinfo`)
-2. Gets the direct upload URL and a 4096px thumbnail URL
-3. If the image is wider than 4096px, uses the thumbnail (WebGL compatibility)
-4. Results are cached for 1 hour
+1. The server calls the Commons API (`action=query&prop=imageinfo`)
+2. Gets the direct upload URL
+3. Downloads and caches the image locally (SHA-256 hash path)
+4. Serves from `/images/<hash>.jpg` (avoids CORS)
 
-Direct URLs (`https://...`) are passed through unchanged.
-
-## Limitations (Phase 1)
-
-- No visual hotspot editor (use `hotSpotDebug: true` in config and browser console)
-- No OAuth authentication (tour pages are manually edited on wiki)
-- No multires tiling (uses direct Commons URLs/thumbnails)
-- File caching is file-based (not suitable for multi-server deployment)
+Direct URLs (`https://...`) are proxied and cached the same way. Image cache has a 1-hour TTL.
 
 ## Deploying to Toolforge
 
-The prototype deploys directly as a **new Toolforge tool** — no code changes or PHP porting needed.
+See `../DEPLOYMENT.md` for the complete step-by-step guide.
 
+Quick steps:
 ```bash
-# 1. Create a new tool
+# Create tool
 ssh login.toolforge.org
 toolforge tools create wikipano
-toolforge tools maintainers add wikipano YOUR_USERNAME
 
-# 2. Deploy the prototype
-rsync -avz ./ YOUR_USERNAME@login.toolforge.org:/data/project/wikipano/
+# Deploy
+rsync -avz --exclude='node_modules' --exclude='cache' --exclude='images' \
+    ./ alih@login.toolforge.org:/data/project/wikipano/www/js/
 
-# 3. Start Node.js web service
-ssh login.toolforge.org "become wikipano; webservice --backend=kubernetes node start"
-
-# 4. Verify
-ssh login.toolforge.org "become wikipano; webservice --backend=kubernetes node status"
+# Start
+ssh alih@login.toolforge.org "become wikipano; webservice --backend=kubernetes node20 start"
 ```
 
-The `tour_server.mjs` entry point is auto-detected by the Node.js backend. No wrapper script needed.
+## Limitations (Phase 1 & 2)
+- No OAuth authentication (tour pages are manually edited on wiki)
+- No multires tiling (uses direct Commons URLs/thumbnails)
+- No mobile-optimized studio (authoring is desktop-oriented)
+- File caching is file-based (not suitable for multi-server deployment)
 
-**Custom entry point** (if needed): create `launch.sh`:
-```bash
-#!/bin/bash
-cd /data/project/wikipano
-node tour_server.mjs
-```
-Then start with:
-```bash
-webservice --backend=kubernetes node start --launch launch.sh
-```
-
-**Create a `{{PanoTour}}` template on Commons** that generates links like:
-```
-https://wikipano.toolforge.org/studio.html?page=User:Example/MyTour
-```
-
-## Next Steps (Phase 2)
-
-- Visual "studio" editor for hotspot placement
-- OAuth-based authentication for saving tours back to wiki
-- Tour validation (2:1 ratio check, GPano metadata verification)
-- `{{PanoTour}}` Commons template for easy tour discovery
+## Before Editing Code
+Read `../CAVEATS.md` — 15 gotchas from hard-won debugging sessions (Pannellum 2.5.7 quirks, hotspot CSS, yaw normalization, etc.).

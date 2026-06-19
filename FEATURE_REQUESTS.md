@@ -349,30 +349,240 @@ Allow the user to upload a separate image (from Commons or their own files) as t
 
 ---
 
+## 9. Standalone Tour Linter / Integrity Checker
+
+**Status**: Not implemented — part of the COMP_COMPARISON.md recommendation
+**Priority**: High
+
+### The Problem
+
+Anyone can create a tour JSON file on Commons and publish it. Currently, there is no way for a contributor to check whether their tour is valid *before* viewing it — they have to load it in the viewer and hope it works. Worse, tours can be published with structural defects (one-way scene links, dangling `sceneId` references, orphaned scenes) that silently degrade the experience.
+
+**What we need**: A standalone command-line utility that anyone can run against a tour JSON file to validate its correctness — like ESLint for JavaScript or `jsonlint` for JSON.
+
+### What It Should Check
+
+#### Tier 1: Structural Integrity (ERROR — tour will break)
+
+| Check | Description | Severity |
+|---|---|---|
+| **Valid JSON/TOML** | File parses without syntax errors | ERROR |
+| **`default.firstScene` exists** | The entry scene is actually defined in `scenes` | ERROR |
+| **All `sceneId` references valid** | Every hotspot `sceneId` points to a defined scene | ERROR |
+| **`panorama` field present** | Every scene has a `panorama` URL or File: reference | ERROR |
+| **Yaw in range** | All hotspot yaw values in [-180, 180] | ERROR |
+| **Pitch in range** | All hotspot pitch values in [-90, 90] | ERROR |
+
+#### Tier 2: Navigation Integrity (WARNING — confusing but functional)
+
+| Check | Description | Severity |
+|---|---|---|
+| **One-way scene links** | For every A→B scene link, verify B→A exists | WARNING |
+| **Orphaned scenes** | Scenes with no incoming links (except `firstScene`) | WARNING |
+| **Unreachable scenes** | Scenes not reachable via any path from `firstScene` | WARNING |
+| **Self-links** | Hotspot `sceneId` pointing to its own scene | WARNING |
+
+#### Tier 3: Content Quality (INFO — suggestions)
+
+| Check | Description | Severity |
+|---|---|---|
+| **Missing `title`** | Scene has no title | INFO |
+| **No hotspots** | Scene has zero hotspots (dead end if not firstScene) | INFO |
+| **Missing `author`** | Tour has no author in `default` | INFO |
+| **`File:` vs URL** | Panorama stored as `File:` reference instead of resolved URL | INFO |
+| **Scene count** | Tour has only 1 scene (could just use Pano360 template) | INFO |
+
+### Usage Design
+
+```bash
+# Basic lint
+node scripts/lint-tour.mjs path/to/tour.json
+
+# Lint with auto-fix (e.g., normalize yaw, add missing fields)
+node scripts/lint-tour.mjs path/to/tour.json --fix
+
+# Strict mode (treat warnings as errors)
+node scripts/lint-tour.mjs path/to/tour.json --strict
+
+# Lint a tour directly from Commons
+node scripts/lint-tour.mjs --page User:Fuzheado/Panellum_Tour
+
+# JSON output for CI/tooling
+node scripts/lint-tour.mjs path/to/tour.json --format json
+
+# Quiet mode — only print errors
+node scripts/lint-tour.mjs path/to/tour.json --quiet
+```
+
+### Output Design
+
+```
+tour.json:7:12  error    sceneId "garden" not found in scenes  dangling-sceneId
+tour.json:15:5  warning  One-way link: "Kitchen" → "Living Room" has no return link  one-way-link
+tour.json:23:8  warning  Scene "Basement" has no incoming links from any other scene  orphaned-scene
+tour.json:31:3  info     Scene "Garage" has no title  missing-title
+
+✖ 4 problems (1 error, 2 warnings, 1 info)
+  1 error must be fixed before this tour can be viewed correctly.
+```
+
+### Architecture
+
+The linter is a **standalone Node.js script** — same zero-dependency constraint as `tour_server.mjs`:
+
+```
+scripts/
+├── lint-tour.mjs          # Entry point: CLI + file loading
+├── lint-rules/
+│   ├── structure.mjs      # JSON/TOML parse, required fields
+│   ├── scene-links.mjs    # sceneId validation, one-way detection
+│   ├── ranges.mjs         # yaw/pitch bounds, numeric validation
+│   └── quality.mjs        # Missing titles, suggestions
+└── validate-pannellum.mjs # Existing JSON Schema validator (augment with cross-scene checks)
+```
+
+Each rule module exports a function `check(tour)` that returns an array of `{line, col, severity, message, rule}` objects. The linter aggregates and formats them.
+
+### Relationship to Existing Validator
+
+The existing `scripts/validate-pannellum.mjs` validates against the **Pannellum JSON Schema** — it checks that the JSON is structurally valid Pannellum config. The linter goes further:
+
+| | `validate-pannellum.mjs` | `lint-tour.mjs` |
+|---|---|---|
+| Validates JSON structure | ✅ | ✅ (delegates) |
+| Validates against Pannellum schema | ✅ | ❌ (separate concern) |
+| Checks cross-scene navigation integrity | ❌ | ✅ |
+| One-way street detection | ❌ | ✅ |
+| Orphan/unreachable scene detection | ❌ | ✅ |
+| Content quality suggestions | ❌ | ✅ |
+| Auto-fix | Yaw normalization, URL encoding | Same + bidirectional link suggestions |
+| Output formats | Text | Text, JSON, quiet |
+| Fetches from Commons | ❌ | ✅ (`--page`) |
+
+Both tools are useful for different audiences: `validate-pannellum.mjs` for developers checking against the Pannellum spec; `lint-tour.mjs` for tour authors checking their work before publishing.
+
+### Integration Points
+
+1. **Studio**: "Lint Tour" button in the toolbar — runs checks and shows results in a modal
+2. **Pre-publish hook**: Before saving to wiki via OAuth, run the linter and warn if errors exist
+3. **Commons template**: `{{PanoTour}}` could optionally display lint status on the wiki page
+4. **CI-like workflow**: A bot could watch for tour page changes and lint them, leaving talk page notes
+
+**Estimated effort**: ~4 hours (script + rule modules + CLI, building on existing parser infrastructure).
+
+---
+
+## 10. Formal Tour Format Specification
+
+**Status**: Not started — needed before others can build tools against our format
+**Priority**: High
+
+### The Problem
+
+Our tour JSON format is based on Pannellum's native configuration schema, but we've extended it with several non-standard fields that are specific to our platform:
+
+- `iconStyle` (hotspot size variants)
+- `hotspotSubtype` (audio/video distinction)
+- `audioUrl` / `videoUrl` (Commons media references)
+- `wikipediaUrl` (auto-enrichment trigger)
+- `_original` (export path resolution)
+- `_thumb` (server-side thumbnail resolution)
+- `author` in `default` section
+
+These extensions are **implemented but undocumented**. Anyone who wants to author a tour by hand (editing the JSON on a wiki page directly) has no reference for what fields are valid, what they do, or what values they accept.
+
+### What The Spec Should Cover
+
+#### Core Schema (Pannellum Baseline)
+- The standard Pannellum tour config: `default`, `scenes`, `hotSpots`
+- Document which Pannellum fields we support (not all Pannellum features are relevant to tours)
+- Link to official Pannellum documentation for standard fields
+
+#### Our Extensions
+
+**Hotspot extensions**:
+
+| Field | Type | Values | Description |
+|---|---|---|---|
+| `iconStyle` | string | `"normal"` (default), `"small"`, `"large"`, `"huge"` | Controls hotspot icon size (32px–80px) |
+| `hotspotSubtype` | string | `"audio"`, `"video"` | Distinguishes media hotspot types under `type: "info"` |
+| `audioUrl` | string | Commons direct URL | Audio file to play when hotspot is active |
+| `videoUrl` | string | Commons direct URL or YouTube URL | Video to play in popup overlay |
+| `wikipediaUrl` | string | `https://en.wikipedia.org/wiki/...` | Triggers Wikipedia card enrichment on hover |
+
+**Scene extensions**:
+
+| Field | Type | Description |
+|---|---|---|
+| `yaw` | number [-180, 180] | Default yaw for scene entry |
+| `pitch` | number [-90, 90] | Default pitch for scene entry |
+| `hfov` | number | Default horizontal field of view |
+
+**Export/internal fields** (not for hand-authoring):
+
+| Field | Type | Description |
+|---|---|---|
+| `_original` | string | Canonical Commons URL (set at export time) |
+| `_thumb` | string | 200px thumbnail URL (set by server) |
+
+#### Constraints & Validation Rules
+- Yaw must be in [-180, 180]
+- Pitch must be in [-90, 90]
+- `firstScene` must reference an existing scene
+- All `sceneId` values must reference existing scenes
+- `panorama` is required on every scene
+- `File:` references are accepted on input but should be resolved to URLs for storage (canonical media references per SC-2.3)
+
+#### Format Versioning
+- The spec should define a `formatVersion` field (e.g., `"formatVersion": "1.0"`) to allow future evolution
+- The server and linter can use this to validate against the correct schema version
+- This is critical for forward compatibility as we add features
+
+### Format & Location
+
+The spec should be a standalone Markdown document: `docs/TOUR_FORMAT_SPEC.md` (or `SPEC.md` at the project root).
+
+It should follow the pattern of a standards document:
+1. **Overview**: What this format is, who it's for, relationship to Pannellum
+2. **Quick Start**: Minimal valid tour example
+3. **Field Reference**: Every field, its type, valid values, default, required/optional
+4. **Constraints**: Cross-field validation rules
+5. **Extensions**: How our extensions differ from standard Pannellum config
+6. **Versioning**: How `formatVersion` works, migration between versions
+7. **Examples**: Complete annotated tours showing common patterns
+
+**Estimated effort**: ~3 hours (primarily documentation — most fields are already implemented and understood).
+
+---
+
 ## Summary: Prioritized Feature List
 
 | # | Feature | Source | Priority | Effort | Phase | Status |
 |---|---|---|---|---|---|---|
 | 1 | Set current view as default yaw/pitch/hfov for scene | Panaedit | **High** | 30 min | 2.5 | ✅ Done |
 | 2 | Draggable hotspot repositioning ("set to current view" button) | Panaedit | **High** | 1-2 hrs | 2.5 | ✅ Done |
-| 3 | Entry view override per hotspot (targetYaw/pitch/hfov) | Novel | Medium | 2-3 hrs | 2.5 | |
-| 4 | Autorotate toggle button in viewer | Marzipano | Medium | 2-3 hrs | 2.5 | |
-| 5 | Fullscreen/theater mode in viewer | Marzipano | Medium | 1-2 hrs | 2.5 | |
-| 6 | Scene thumbnail crop control (specify region) | Improvement | Medium | 3-4 hrs | 3 | |
-| 7 | Floor plan editor with draggable markers | Panaedit | Medium | 3-5 days | 3 | |
-| 8 | Wikipedia article side panel (click-to-open) | Panaedit | Low | 2-3 hrs | 3 | |
+| 3 | Standalone tour linter / integrity checker | COMP_COMPARISON | **High** | ~4 hrs | 2.5 | |
+| 4 | Formal tour format specification | — | **High** | ~3 hrs | 2.5 | |
+| 5 | Entry view override per hotspot (targetYaw/pitch/hfov) | Novel | Medium | 2-3 hrs | 2.5 | |
+| 6 | Autorotate toggle button in viewer | Marzipano | Medium | 2-3 hrs | 2.5 | |
+| 7 | Fullscreen/theater mode in viewer | Marzipano | Medium | 1-2 hrs | 2.5 | |
+| 8 | Scene thumbnail crop control (specify region) | Improvement | Medium | 3-4 hrs | 3 | |
+| 9 | Floor plan editor with draggable markers | Panaedit | Medium | 3-5 days | 3 | |
+| 10 | Wikipedia article side panel (click-to-open) | Panaedit | Low | 2-3 hrs | 3 | |
 
 ### Phase 2.5 Additions (Small Effort, High Value)
 - ~~Feature 1: Set default view button in scene properties~~ ✅
 - ~~Feature 2: "Set to current view" in hotspot edit modal~~ ✅
-- Feature 3: targetYaw/targetPitch/targetHfov fields in scene link modal
-- Feature 4: Autorotate toggle in viewer footer
-- Feature 5: Theater mode button (hide all UI)
+- **Feature 3: Standalone tour linter (`scripts/lint-tour.mjs`)** — one-way street detection, orphaned scenes, structural validation, `--fix` support
+- **Feature 4: Tour format specification (`docs/TOUR_FORMAT_SPEC.md`)** — document all Pannellum extensions, constraints, versioning
+- Feature 5: targetYaw/targetPitch/targetHfov fields in scene link modal
+- Feature 6: Autorotate toggle in viewer footer
+- Feature 7: Theater mode button (hide all UI)
 
 ### Phase 3 Additions (Larger Effort)
-- Feature 6: Scene thumbnail crop control
-- Feature 7: Floor plan editor (or leverage PSV PlanPlugin)
-- Feature 8: Wikipedia article side panel
+- Feature 8: Scene thumbnail crop control
+- Feature 9: Floor plan editor (or leverage PSV PlanPlugin)
+- Feature 10: Wikipedia article side panel
 
 ---
 
@@ -380,6 +590,8 @@ Allow the user to upload a separate image (from Commons or their own files) as t
 
 Some features depend on others:
 - **Feature 2 (hotspot repositioning)** ~~depends on Feature 1~~ — both now share the same `viewer.getYaw()/getPitch()` pattern ✅
-- **Feature 3 (entry view override)** depends on Pannellum's native `targetYaw/targetPitch/targetHfov` support — already built in, just needs UI
-- **Feature 5 (theater mode)** can be implemented standalone and works alongside any other feature
+- **Feature 3 (linter)** builds on existing parser + `validate-pannellum.mjs` infrastructure — parser already exists, needs rule modules
+- **Feature 4 (format spec)** is a pure documentation task — no code dependencies, but should be written before Feature 3 to define what "valid" means
+- **Feature 5 (entry view override)** depends on Pannellum's native `targetYaw/targetPitch/targetHfov` support — already built in, just needs UI
+- **Feature 7 (theater mode)** can be implemented standalone and works alongside any other feature
 - **Feature 7 (floor plan)** is Phase 3 and independent of other features

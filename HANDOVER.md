@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-18 (updated)
-**Session**: Mobile gyroscope toggle, icon consistency, icon size variants
+**Session**: Toolforge deployment, mobile gyroscope, template docs
 
 ---
 
@@ -26,6 +26,7 @@
 | Icon consistency (Studio = Viewer) | ✅ |
 | Icon size variants (`iconStyle`) | ✅ |
 | **Mobile gyroscope toggle** | ✅ |
+| **Toolforge deployment** | ✅ **wikipano.toolforge.org** |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
@@ -42,7 +43,11 @@
 5. **Gyroscope requires HTTPS**: Pannellum's `isOrientationSupported()` returns false on `http:` — only works on `https:` (privacy requirement for DeviceOrientationEvent API)
 
 ### Roadmap
-- **Phase 2.5**: Toolforge deployment (`wikipano`), `{{PanoTour}}` template, OAuth save-to-wiki
+- **Phase 2.5**: ✅ **Done** — deployed at **wikipano.toolforge.org**
+  - Tour Viewer: https://wikipano.toolforge.org/tour_viewer.html
+  - Studio: https://wikipano.toolforge.org/studio.html
+  - `{{PanoTour}}` template: instructions in `DEPLOYMENT.md`
+  - Pending: Multires tiling, OAuth save-to-wiki
 - **Phase 3**: Auto-popup in field of view, GPS/maps, gallery, multilingual, tour discovery
 
 ### Debug Commands
@@ -58,6 +63,11 @@ playwright-cli console
 
 ## Quick Start (Next Session)
 
+### Live
+- https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
+
+### Local
 ```bash
 cd /Users/alih/Documents/ai/photospheres/prototype
 node tour_server.mjs
@@ -122,10 +132,13 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 
 ```
 photospheres/
-├── RESEARCH_REPORT.md       # Library comparison (Pannellum vs PSV vs Marzipano)
-├── PRD.md                   # Product requirements
+├── README.md                # Project overview
+├── DEPLOYMENT.md            # Step-by-step Toolforge + Commons template deployment guide
 ├── DEVELOPMENT.md           # Build status + roadmap
+├── PRD.md                   # Product requirements
 ├── HANDOVER.md              # This file
+├── CAVEATS.md               # Gotchas & debugging lessons
+├── DEBUGGING.md             # Visual debugging guide (playwright-cli patterns for 360° viewport)
 ├── adr/
 │   ├── README.md            # ADR index
 │   ├── 001-pannellum-phase-1.md
@@ -135,10 +148,13 @@ photospheres/
 │   ├── 005-nodejs-prototype.md
 │   ├── 006-toml-json-yaml.md
 │   └── 007-hotspot-icons-postmortem.md
-├── DEBUGGING.md             # Visual debugging guide (playwright-cli patterns for 360° viewport)
 ├── scripts/
 │   ├── dump-state.js                # Playwright run-code script for full state introspection
-│   └── validate-pannellum.mjs       # Pannellum JSON Schema validator + auto-fix
+│   ├── validate-pannellum.mjs       # Pannellum JSON Schema validator + auto-fix
+│   └── create-panotour-templates.py # Pywikibot script for Commons template creation
+├── tests/
+│   ├── studio-behaviors.spec.js     # Studio interaction behavior tests
+│   └── mobile-gyro.spec.js          # Mobile gyroscope toggle tests
 └── prototype/
     ├── tour_server.mjs       # Server (the main entry point)
     ├── tour_viewer.html      # End-user viewer
@@ -318,9 +334,23 @@ photospheres/
 - Handles iOS 13+ permission prompt via `DeviceOrientationEvent.requestPermission()`
 - **Key finding**: Pannellum requires HTTPS for gyroscope — `http://localhost` won't work
   - Source: `DeviceOrientationEvent && "https:" == location.protocol`
-  - Deployed Toolforge (HTTPS) will work correctly
+  - Deployed Toolforge (HTTPS) works correctly ✅
 - Desktop: button hidden (no touch)
-- Test: Playwright confirmed API exists and methods are callable
+- Verified working on mobile device via wikipano.toolforge.org
+
+### Toolforge Deployment (2026-06-18)
+- Tool created: `toolforge tools create wikipano`
+- Code deployed to `/data/project/wikipano/www/js/` via rsync
+- Web service started: `webservice --backend=kubernetes node20 start`
+- Live at: https://wikipano.toolforge.org
+- Key finding: Toolforge Node.js expects app in `~/www/js/` with `package.json`
+- Files owned by `alih` group `tools.wikipano` — rsync creates as `alih:wikidev`, corrected via `become`
+- Gyroscope confirmed working on mobile over HTTPS 🎉
+
+### DEPLOYMENT.md Created (2026-06-18)
+- Created `DEPLOYMENT.md` with complete copy-paste deployment guide
+- Covers Commons template creation (5 templates), Toolforge deploy, verification steps
+- All documentation updated to reflect live deployment status
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference
@@ -329,21 +359,24 @@ photospheres/
 
 ---
 
-## Next Steps (Phase 2.5: New Toolforge Tool Deployment)
+## Phase 2.5: Deploy ✅ (2026-06-18)
 
-**Decision (2026-06-17)**: Instead of modifying the existing `panoviewer.toolforge.org` install, we create a brand new Toolforge tool named **`wikipano`**. Toolforge supports Node.js natively via `webservice --backend=kubernetes node`, so the existing `tour_server.mjs` deploys directly — no PHP porting needed.
+**Decision**: Create a new Toolforge tool named **`wikipano`** (not modify existing `panoviewer`). Toolforge's Node.js backend runs `tour_server.mjs` directly — no PHP porting.
 
-1. **Create new Toolforge tool** — `wikipano`
-   - `ssh login.toolforge.org toolforge tools create wikipano`
-   - `webservice --backend=kubernetes node start` serves the prototype directly
-2. **Deploy prototype** - rsync `prototype/` to `/data/project/wikipano/`
-   - `node tour_server.mjs` is the entry point
-   - No code changes needed; zero external dependencies
-3. **Create `{{PanoTour}}` template** on Commons - generates links to the new tool
-4. **Handle multires tiling** - build a Node.js tiling pipeline (or adapt panoviewer's `generate.py`)
-5. **OAuth save-to-wiki** - add authenticated save from Studio back to wiki pages
+**Done**:
+- [x] Tool created: `toolforge tools create wikipano`
+- [x] Code deployed: rsync `prototype/` → `/data/project/wikipano/www/js/`
+- [x] Web service started: `webservice --backend=kubernetes node20 start`
+- [x] Mobile gyroscope enabled (HTTPS)
+- [x] Live URLs: https://wikipano.toolforge.org/tour_viewer.html
+- [x] `DEPLOYMENT.md` created with Commons template creation guide
 
-Not needed:
+**Pending**:
+- [ ] Create `{{PanoTour}}` template on Commons (instructions in `DEPLOYMENT.md`)
+- [ ] Handle multires tiling (or adapt panoviewer's `generate.py`)
+- [ ] OAuth save-to-wiki from Studio
+
+**Not needed**:
 - ❌ Port to PHP
 - ❌ Modify existing panoviewer tool
 

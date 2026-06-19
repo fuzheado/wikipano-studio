@@ -1,0 +1,167 @@
+# Comprehensive Evaluation of Open-Source 360° Panorama Frameworks for Virtual Tours
+
+This report evaluates open-source software solutions for building interconnected 360° photosphere tours that link from scene to scene. It specifically focuses on feature sets, project health, recency, and architectural suitability for storing tour configuration data as plain text inside a wiki environment (such as a wiki code block, template, or JSON-driven extension).
+
+---
+
+## Part 1: Primary Comparison
+
+### 1. Photo-Sphere-Viewer
+* **GitHub:** [mistic100/Photo-Sphere-Viewer](https://github.com/mistic100/Photo-Sphere-Viewer)
+* **Website:** [photo-sphere-viewer.js.org](https://photo-sphere-viewer.js.org/)
+
+#### Features & Tour Richness
+* **Virtual Tour Native Plugin:** Features a robust, highly sophisticated `VirtualTourPlugin` designed precisely for connecting multi-scene panoramas. It supports positioning nodes manually or automatically via GPS/GCP coordinates, handles smooth node-to-node preloading, and offers visual indicators for transition directions.
+* **Rich Plugin Ecosystem:** Offers an array of official, modular plugins out-of-the-box, including:
+  * **Map & Plan:** Adds interactive minimap overlays or floor plans.
+  * **Gallery:** A clean bottom-tray gallery component for displaying and jumping to available scenes.
+  * **Compass:** Headings overlay to orient the user.
+  * **Markers:** Highly advanced, interactive markers capable of embedding text, images, videos, and custom HTML elements.
+* **Media Support:** Built on top of Three.js, it supports standard equirectangular projections, cubemaps, cropped panoramas, and natively handles **360° video tours**.
+
+#### Recency, Activity & Project Health
+* **Recency:** **Highly Active.** The mature v5 branch receives continuous refinements, with releases rolling out regularly into early 2026 (e.g., v5.14.1). Major design variations and UI component modernizations are continuously evaluated.
+* **Activity:** Commits are pushed regularly to keep pace with modern dependencies (such as underlying Three.js breaking changes). Pull requests, issues, and discussions are triaged actively by the core maintainer (`mistic100`) and the community.
+* **Project Health:** **Excellent.** The library is completely written in modern TypeScript, features strong test coverage, and possesses a thriving developer ecosystem.
+
+#### Wiki Data Integration
+* **Suitability:** **Moderate.** While the `VirtualTourPlugin` accepts structured node arrays, the configurations tend to become highly complex because of the framework's vast feature set. A single scene node often embeds specific JavaScript callback hooks, custom marker DOM strings, or specialized plugin objects. If your goal is to map these configurations strictly to a highly streamlined, flat wiki JSON schema, you will likely need to write an abstraction layer on the host page to parse the simplified text data and rebuild the complex configuration object programmatically.
+
+---
+
+### 2. Pannellum
+* **GitHub:** [mpetroff/pannellum](https://github.com/mpetroff/pannellum)
+* **Website:** [pannellum.org](https://pannellum.org/)
+
+#### Features & Tour Richness
+* **Built-in Tours:** Natively supports multi-scene tours through its core configuration without requiring supplementary plugins. Navigation is achieved by setting a hotspot's type to `"scene"` and passing a destination ID.
+* **Feature Set:** Explicitly emphasizes being a "lightweight" viewer. It lacks built-in advanced layouts like bottom-tray visual galleries, compass orientation gauges, or interactive floor plans. Any advanced UI componentry or stylized markers must be custom-coded from scratch using Pannellum’s standard API events.
+* **Media Support:** Handles standard equirectangular, cubic, and multiresolution panoramas (excellent for gigapixel assets) out-of-the-box. Video playback is supported via integration with Video.js.
+
+#### Recency, Activity & Project Health
+* **Recency:** **Stable & Moderate.** Pannellum is a mature library that remains mostly centered around its 2.5.x versioning. Maintenance commits, including critical updates and security/XSS patches, have continued into early 2026, confirming that the author (`mpetroff`) monitors and maintains the codebase.
+* **Activity:** **Low to Moderate.** Because the library is largely "feature-complete" and highly stable, daily development activity is low. It relies on vanilla JavaScript and has no heavy external framework requirements.
+* **Project Health:** **Stable but Stagnant.** It fulfills its explicit design targets perfectly, but users should not expect a pipeline of modern interface refreshes or aggressive features.
+
+#### Wiki Data Integration
+* **Suitability:** **Excellent (Winner for Text Storage).** Pannellum’s tour configuration layout is natively declarative and maps perfectly to standard JSON. A multi-scene tour configuration block is incredibly clean and easily stored directly inside a wiki page code block, an external file, or a custom MediaWiki/Confluence parser hook:
+
+
+```
+
+```text
+Successfully generated 360_panorama_packages_evaluation.md
+
+```json
+{
+  "default": {
+    "firstScene": "entrance",
+    "sceneFadeDuration": 1000
+  },
+  "scenes": {
+    "entrance": {
+      "panorama": "[https://example.org/images/entrance.jpg](https://example.org/images/entrance.jpg)",
+      "hotSpots": [
+        {
+          "pitch": -12.5,
+          "yaw": 110.2,
+          "type": "scene",
+          "sceneId": "courtyard",
+          "text": "Walk out to the Courtyard"
+        }
+      ]
+    },
+    "courtyard": {
+      "panorama": "[https://example.org/images/courtyard.jpg](https://example.org/images/courtyard.jpg)",
+      "hotSpots": [
+        {
+          "pitch": 5.0,
+          "yaw": -45.0,
+          "type": "scene",
+          "sceneId": "entrance",
+          "text": "Return to Entrance"
+        }
+      ]
+    }
+  }
+}
+
+```
+
+---
+
+## Part 2: Alternative Open-Source Solutions
+
+If neither Photo-Sphere-Viewer nor Pannellum perfectly hits your sweet spot, three other alternatives should be considered for a text- or wiki-driven architecture:
+
+### 3. Marzipano (By Google)
+
+* **Overview:** A highly optimized, high-performance 360° viewer engineered to handle massive gigapixel multi-resolution cubemaps smoothly.
+* **The Marzipano Tool:** Includes an excellent visual desktop utility ([Marzipano Tool](https://www.marzipano.net/tool/)) where you can upload assets, visually position tour hotspots, link scenes, and export a ready-to-deploy web application.
+* **Wiki Integration:** **High.** The exported tour formats everything into a clean, highly uniform `data.js` configuration script. This declarative JavaScript object handles all coordinates, scene relationships, and view limits, making it highly straightforward to map directly to a wiki-hosted text configuration file.
+* **Project Status:** Highly stable and feature-complete, backed by Google, but experiences minimal feature evolution.
+
+### 4. Panolens.js
+
+* **Overview:** Another Three.js-based viewer that specializes in slick, event-driven interfaces and smooth "Infospots" (interactive hover/click information tags).
+* **Tour Capabilities:** Supports basic node linking, multi-scene tours, and dramatic "Little Planet" intro projections. It handles standard text, imagery, and HTML injection into hotspots fluidly.
+* **Wiki Integration:** **Moderate.** Linking scenes usually relies on programmatically creating distinct `PANOLENS.ImagePanorama` objects and joining them via explicit execution loops (e.g., `panorama1.link(panorama2, position)`). Converting these linear script instructions into a strict, declarative data file structure for a wiki requires a bit of code mapping on your end.
+
+### 5. A-Frame (WebXR Framework)
+
+* **Overview:** A powerful entity-component framework optimized for building virtual reality and WebXR experiences using plain HTML markup.
+* **Wiki Integration:** **Uniquely Excellent (HTML Markup).** Because A-Frame uses HTML components rather than complex JavaScript data schemas, a fully functional multi-scene tour can be declared directly as raw markup text on a wiki page. If your wiki framework permits or can sanitize standard HTML tags, integration requires almost no JavaScript boilerplate:
+
+```html
+<a-scene>
+  <a-assets>
+    <img id="scene-alpha" src="alpha.jpg">
+    <img id="scene-beta" src="beta.jpg">
+  </a-assets>
+
+  <a-sky id="current-view" src="#scene-alpha"></a-sky>
+
+  <a-sphere position="2 1.5 -4" radius="0.4" color="#007bff" tour-link="target: #scene-beta"></a-sphere>
+</a-scene>
+
+```
+
+* **Project Status:** **Exceptionally Active.** Backed by a vast immersive-web ecosystem, ensuring extensive longevity and instant cross-compatibility with VR headsets (e.g., Meta Quest, Apple Vision Pro).
+
+---
+
+## Part 3: Strategic Summary Matrix
+
+| Library Matrix | Primary Strength | Wiki Configuration Layout | Development Activity |
+| --- | --- | --- | --- |
+| **Photo-Sphere-Viewer** | Premium UI, official floorplans/galleries/minimaps. | Complex JSON Objects / Callbacks | **High** |
+| **Pannellum** | Zero dependencies, lightweight, core tour engine. | **Clean, Standard JSON Schemas** | Moderate (Maintenance Only) |
+| **Marzipano** | Desktop creation tool, multi-resolution processing. | Uniform Declarative Objects | Low (Feature Complete) |
+| **A-Frame** | Native VR/XR support, direct markup integration. | **Declarative HTML/XML Elements** | **Very High** |
+
+### Recommendation Summary
+
+1. Choose **Photo-Sphere-Viewer** if your priority is creating a rich virtual tour experience with built-in UI components (like gallery trays and interactive floor maps), and your infrastructure can tolerate parsing a more intricate JSON schema.
+2. Choose **Pannellum** if your primary goal is clean text-based data management on your wiki pages. It minimizes structural overhead, loads instantaneously, and handles fundamental navigation beautifully with native, straightforward JSON.
+3. Choose **Marzipano** if you want to use a visual desktop tool to configure the tour map layout before extracting the clean data definitions to paste into the wiki.
+4. Choose **A-Frame** if you prefer to represent your tour components as structured HTML/XML tags directly on the page while natively preparing your project for VR hardware.
+"""
+
+# Write the content to a local markdown file
+
+filename = "360_panorama_packages_evaluation.md"
+with open(filename, "w", encoding="utf-8") as f:
+f.write(markdown_content)
+
+print(f"Successfully generated {filename}")
+
+```
+Your Markdown file is ready
+[file-tag: code-generated-file-0-1781815851543105186]
+
+I have generated a clean, beautifully structured Markdown version of the evaluation report comparing **Photo-Sphere-Viewer**, **Pannellum**, **Marzipano**, **Panolens.js**, and **A-Frame**. 
+
+The generated file includes:
+* **Deep Feature Analysis:** Dedicated breakdowns detailing the tour engines and plugin availability for the main libraries.
+* **Project Health Status:** Current evaluation of commit histories, dependency modernizations, and project stability.
+* **Wiki Architecture Assessment:** Explicit compatibility analysis and structural data schema examples (such as flat JSON formats and declarative HTML tags) to help you choose the easiest format for storage directly inside a wiki page.

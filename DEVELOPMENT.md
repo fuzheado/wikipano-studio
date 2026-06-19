@@ -48,6 +48,11 @@ photospheres/
 ├── RESEARCH_REPORT.md          # Library landscape analysis & architecture proposal
 ├── PRD.md                      # Phase 1 product requirements & test plan
 ├── DEVELOPMENT.md              # This file — what's built and what's next
+├── DEPLOYMENT.md               # Step-by-step Toolforge + Commons template deployment guide
+├── CAVEATS.md                  # Gotchas & debugging lessons
+├── DEBUGGING.md                # Visual debugging with playwright-cli
+├── HANDOVER.md                 # Session log + current-state quick reference
+├── README.md                   # Project overview
 ├── PROMPT.txt                  # Original research prompt
 ├── adr/                        # Architecture Decision Records
 │   ├── README.md               # ADR index & template
@@ -56,7 +61,15 @@ photospheres/
 │   ├── 003-image-caching-via-hash-paths.md
 │   ├── 004-dual-toml-json-format-support.md
 │   ├── 005-nodejs-prototype-server.md
-│   └── 006-toml-json-yaml-format-decision.md
+│   ├── 006-toml-json-yaml-format-decision.md
+│   └── 007-hotspot-icon-visibility-postmortem.md
+├── scripts/
+│   ├── validate-pannellum.mjs  # JSON Schema validator + auto-fix
+│   ├── dump-state.js           # Playwright state introspection
+│   └── create-panotour-templates.py  # Pywikibot script for template creation
+├── tests/
+│   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
+│   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
 └── prototype/
     ├── tour_server.mjs          # Node.js server (zero deps): API + static files + image cache
     ├── tour_viewer.html         # Pannellum viewer with scene sidebar + Wikipedia cards
@@ -129,16 +142,23 @@ photospheres/
 - [x] Integrity checks at all data boundaries — validateHotspot() + validateTour() at add/edit/import/export/preview
 - [x] 5-step rule for new hotspot fields: storage, import, export, preview, validation
 - [x] CAVEATS.md — 15 gotchas (transform, paths, yaw, container hunting, enrichHotspots, DOM order, ...)
+- [x] **Mobile gyroscope toggle** (🧭 button using Pannellum's startOrientation() API)
+- [x] iOS 13+ permission prompt handling via DeviceOrientationEvent.requestPermission()
+- [x] Hotspot icon size variants (`iconStyle`: normal, small, large, huge)
+- [x] Icon consistency — Studio and Viewer use identical CSS for all hotspot types
+- [x] DEPLOYMENT.md — step-by-step Toolforge deployment guide
 
-### Phase 2.5: New Toolforge Tool Deployment (2026-06-17)
+### Phase 2.5: New Toolforge Tool Deployment ✅ (2026-06-18)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.
 
-- [ ] Create new Toolforge tool via `toolforge tools create wikipano`
-- [ ] Deploy `prototype/` via rsync to `/data/project/wikipano/`
-- [ ] Start web service: `webservice --backend=kubernetes node start`
-- [ ] Create `{{PanoTour}}` template on Commons
-- [ ] Configure tool maintainers and access permissions
-- [ ] Create `{{PanoTour}}` Commons template → generates viewer/studio links
+- [x] Tool created: `toolforge tools create wikipano`
+- [x] Prototype deployed to `/data/project/wikipano/www/js/` via rsync
+- [x] Web service started: `webservice --backend=kubernetes node20 start`
+- [x] `{{PanoTour}}` template — instructions in `DEPLOYMENT.md` (manual creation on Commons needed)
+- [x] Mobile gyroscope toggle (🧭 button) — deployed and working on HTTPS
+- [x] Tour Viewer live at: https://wikipano.toolforge.org/tour_viewer.html
+- [x] Visual Studio live at: https://wikipano.toolforge.org/studio.html
+- [x] API live at: https://wikipano.toolforge.org/api/tour?page=User:Fuzheado/Panellum_Tour
 - [ ] Handle multires tiling for large tour images (reuse existing pipeline)
 - [ ] OAuth-authenticated save-to-wiki from Studio
 - [ ] Documentation: how to create, edit, and share a tour
@@ -157,8 +177,13 @@ photospheres/
 
 ---
 
-## Running the Prototype
+## Running
 
+### Live (Toolforge)
+- **Tour Viewer**: https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- **Visual Studio**: https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
+
+### Local Development
 ```bash
 cd prototype
 node tour_server.mjs

@@ -10,8 +10,8 @@
 #    FORMAT B: JSON (best for programmatic generation)
 #
 # 5. View your tour at:
-#    https://<your-tool>.toolforge.org/studio.html?page=User:YourName/YourTourName
-#    (or use the viewer: https://<your-tool>.toolforge.org/tour_viewer.html#User:YourName/YourTourName)
+#    https://wikipano.toolforge.org/studio.html?page=User:YourName/YourTourName
+#    (or use the viewer: https://wikipano.toolforge.org/tour_viewer.html#User:YourName/YourTourName)
 #
 # Tips:
 #   - Use Pannellum's hotSpotDebug mode to find coordinates
@@ -117,8 +117,9 @@
 #   for the logged pitch/yaw values.
 #
 # OPTION 2: Use the Visual Studio
-#   Run `node tour_server.mjs` then open http://localhost:8765/studio.html
-#   and import your tour to place hotspots visually.
+#   Open https://wikipano.toolforge.org/studio.html
+#   Or locally: run `node tour_server.mjs` then open http://localhost:8765/studio.html
+#   Import your tour to place hotspots visually.
 #
 # OPTION 3: Estimate
 #   - yaw:    0° = center, 90° = right, -90° = left, 180°/-180° = behind

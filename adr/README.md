@@ -14,6 +14,7 @@ Each ADR describes a decision, the context that led to it, the options considere
 | [004](004-dual-toml-json-format-support.md) | Dual TOML + JSON Format Support | Accepted |
 | [006](006-toml-json-yaml-format-decision.md) | TOML/JSON/YAML Format Decision — JSON Canonical, TOML Supported, YAML Excluded | Accepted |
 | [007](007-hotspot-icon-visibility-postmortem.md) | Studio Hotspot Icon Visibility — Postmortem | Accepted |
+| [008](008-toolforge-deployment.md) | Toolforge Deployment — New Tool vs. Extension | Accepted |
 
 ## Template
 

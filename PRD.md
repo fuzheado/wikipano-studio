@@ -1,10 +1,13 @@
 # PRD: Wikimedia 360° Photosphere Tours — Phase 1 Prototype
 
-**Version**: 1.0
-**Date**: 2026-06-17
-**Status**: Draft
+**Version**: 1.5
+**Date**: 2026-06-18
+**Status**: Phase 1 + 2 Complete, Phase 2.5 Deployed
 
-> **Deployment note (2026-06-17)**: Production deploys as a **new Toolforge tool** (`wikipano.toolforge.org`), not as an extension of the existing `panoviewer.toolforge.org`. Toolforge's native Node.js backend (`webservice --backend=kubernetes node`) runs `tour_server.mjs` directly — no PHP porting required.
+> **Deployment note**: Production deployed as a **new Toolforge tool** at **wikipano.toolforge.org**. The Node.js-native backend (`webservice --backend=kubernetes node20`) runs `tour_server.mjs` directly — no PHP porting required. Live URLs:
+> - Viewer: https://wikipano.toolforge.org/tour_viewer.html
+> - Studio: https://wikipano.toolforge.org/studio.html
+> - API: https://wikipano.toolforge.org/api/tour?page=User:Fuzheado/Panellum_Tour
 
 ---
 
