@@ -47,7 +47,8 @@ Hotspots linking to Wikipedia articles automatically display rich tooltips:
 photospheres/
 ├── RESEARCH_REPORT.md          # Library landscape analysis & architecture proposal
 ├── PRD.md                      # Phase 1 product requirements & test plan
-├── DEVELOPMENT.md              # This file — what's built and what's next
+├── DEVELOPMENT.md              # This file — what's been built (log)
+├── FEATURE_REQUESTS.md         # Backlog of planned features
 ├── DEPLOYMENT.md               # Step-by-step Toolforge + Commons template deployment guide
 ├── CAVEATS.md                  # Gotchas & debugging lessons
 ├── DEBUGGING.md                # Visual debugging with playwright-cli
@@ -68,6 +69,7 @@ photospheres/
 │   ├── dump-state.js           # Playwright state introspection
 │   └── create-panotour-templates.py  # Pywikibot script for template creation
 ├── tests/
+│   ├── tour-viewer.spec.js       # Tour viewer URL params, scene nav, status, state
 │   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
 │   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
 └── prototype/
@@ -147,6 +149,8 @@ photospheres/
 - [x] Hotspot icon size variants (`iconStyle`: normal, small, large, huge)
 - [x] Icon consistency — Studio and Viewer use identical CSS for all hotspot types
 - [x] DEPLOYMENT.md — step-by-step Toolforge deployment guide
+- [x] **Tour Viewer `?page=` + `?scene=` URL parameters** — same params as Studio; hash-based routing preserved
+- [x] **Tour Viewer test suite** (`tests/tour-viewer.spec.js`) — 15 tests covering URL params, scene nav, sidebar, status, viewer state
 
 ### Phase 2.5: New Toolforge Tool Deployment ✅ (2026-06-18)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.
@@ -181,6 +185,7 @@ photospheres/
 
 ### Live (Toolforge)
 - **Tour Viewer**: https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- **Tour Viewer (query string)**: https://wikipano.toolforge.org/tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=Museum
 - **Visual Studio**: https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
 
 ### Local Development

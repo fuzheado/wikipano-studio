@@ -595,3 +595,110 @@ Some features depend on others:
 - **Feature 5 (entry view override)** depends on Pannellum's native `targetYaw/targetPitch/targetHfov` support — already built in, just needs UI
 - **Feature 7 (theater mode)** can be implemented standalone and works alongside any other feature
 - **Feature 7 (floor plan)** is Phase 3 and independent of other features
+
+---
+
+## Phase 2.6: Scope & Compliance Features
+
+**Date**: 2026-06-18
+**Purpose**: Multi-wiki support + Wikimedia content restrictions
+
+### Decisions
+- Tour definitions can come from any Wikimedia project (multi-wiki support)
+- Audio/video restricted to Wikimedia Commons only (runtime `ALLOW_ALL_SOURCES` flag for dev)
+- Panoramas must be Commons `File:` references
+- Info hotspots allow any URL but show external link warning
+- Export validates against compliance rules
+
+### FR-01: Multi-Wiki Tour Loading
+**Priority**: High  
+**Status**: ⬜ Not started  
+**Description**: Support loading tour definitions from any Wikimedia project using `prefix:Page` format. Default to `commons:` for backward compatibility.
+
+**Prefixes**: `commons:`, `en:`, `de:`, `fr:`, `es:`, `ja:`, `zh:`, `ru:`, `pt:`, `it:`, etc.
+
+**Examples**:
+- `commons:User:Fuzheado/Panellum_Tour` → Commons
+- `en:Wikipedia:Featured_tours/Museum` → English Wikipedia
+- `User:Fuzheado/Panellum_Tour` → Commons (no prefix = backward compatible)
+
+**Changes needed**:
+- Server: Generalize `fetchTourFromCommons()` → `fetchTourFromWiki(prefix, page)` with prefix→API mapping
+- Studio/Viewer: Update UI to show which wiki the tour is loaded from
+- Export: Include source wiki in JSON metadata
+
+### FR-02: Audio/Video Source Restriction
+**Priority**: High  
+**Status**: ⬜ Not started  
+**Description**: Restrict audio and video hotspots to Wikimedia Commons files only. No external URLs (YouTube, etc.) by default.
+
+**Runtime flag**: `ALLOW_ALL_SOURCES=true` unlocks all sources (for testing/development).
+
+**Whitelist**:
+- ✅ `File:*.ogg` on Commons (audio)
+- ✅ `File:*.mp3` on Commons (audio)
+- ✅ `File:*.wav` on Commons (audio)
+- ✅ `File:*.webm` on Commons (video)
+- ✅ `File:*.ogv` on Commons (video)
+- ❌ YouTube, Vimeo, or any other external URL (unless `ALLOW_ALL_SOURCES`)
+
+**Changes needed**:
+- Server: Add URL validation function `isAllowedMediaSource(url)`
+- Studio: Disable YouTube/external audio/video options by default; show locked UI state
+- Import: Reject tours with non-allowed media sources (or strip with warning)
+- Export: Validate and warn on non-compliant media
+
+### FR-03: Panorama Source Validation
+**Priority**: Medium  
+**Status**: ⬜ Not started  
+**Description**: Enforce that all panorama `File:` references are from Wikimedia Commons. No external image URLs.
+
+**Already implemented**: Current behavior loads from Commons API.
+
+**Changes needed**:
+- Add explicit validation in server and Studio
+- Clear error message if non-Commons panorama detected
+- Export validation to catch any violations
+
+### FR-04: Info Hotspot External Link Warning
+**Priority**: Low  
+**Status**: ⬜ Not started  
+**Description**: Info hotspots can link to any URL, but show a visual warning (⚠️ icon or tooltip) when linking to non-Wikimedia sites.
+
+**Wikimedia domains** (no warning):
+- `*.wikipedia.org`
+- `*.wikimedia.org`
+- `*.wikidata.org`
+- `*.wikiquote.org`
+- `*.wiktionary.org`
+- `*.commons.wikimedia.org`
+
+**Changes needed**:
+- Studio: Show warning icon/badge on external info hotspots
+- Viewer: Optional tooltip on hover ("External link")
+- Export: No restriction, just metadata
+
+### FR-05: Export Validation
+**Priority**: Medium  
+**Status**: ⬜ Not started  
+**Description**: Validate exported JSON against compliance rules before download. Warn on non-compliant content.
+
+**Rules**:
+- Panoramas must be Commons `File:` references
+- Audio/video must be Commons `File:` references (unless `ALLOW_ALL_SOURCES`)
+- Info URLs: pass through, but flag external links
+
+**Changes needed**:
+- Add `validateExport(tour, options)` function
+- Studio export UI: Show compliance checklist with warnings/errors
+- Option to "Fix non-compliant" (strip or convert)
+
+### Implementation Order
+
+| Phase | Feature | Effort | Dependencies |
+|-------|---------|--------|--------------|
+| 1 | FR-01 Multi-Wiki Loading | Medium | None |
+| 2 | FR-02 Audio/Video Restriction | Medium | FR-01 |
+| 3 | FR-05 Export Validation | Medium | FR-02, FR-03 |
+| 4 | FR-03 Panorama Validation | Low | FR-01 |
+| 5 | FR-04 External Link Warning | Low | None |

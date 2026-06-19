@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
-**Date**: 2026-06-18 (updated)
-**Session**: Toolforge deployment, mobile gyroscope, template docs
+**Date**: 2026-06-19 (updated)
+**Session**: Tour viewer URL params, test suite expansion
 
 ---
 
@@ -17,7 +17,7 @@
 | Import/Export preserve videoUrl | ✅ |
 | Yaw normalization [-180,180] | ✅ |
 | Viewport preservation on edit | ✅ |
-| `?scene=` URL param | ✅ |
+| `?page=` + `?scene=` URL params (Viewer + Studio) | ✅ |
 | JSON validator (`--fix`) | ✅ |
 | Integrity checks at all boundaries | ✅ |
 | Scene thumbnails (Studio + Viewer) | ✅ |
@@ -65,6 +65,7 @@ playwright-cli console
 
 ### Live
 - https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
+- https://wikipano.toolforge.org/tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=Museum
 - https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
 
 ### Local
@@ -83,7 +84,8 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 
 ### Tour Viewer (`tour_viewer.html`)
 - Pannellum-based 360° viewer with scene sidebar (thumbnails via CSS background-size:cover)
-- Loads tours from wiki pages: `#User:Fuzheado/Panellum_Tour`
+- Loads tours from wiki pages: `#User:Fuzheado/Panellum_Tour` (hash) or `?page=User:Fuzheado/Panellum_Tour` (query string)
+- **Scene jump**: `?scene=Museum` — jumps to a specific scene after load (works with both hash and query string)
 - Loads previews from localStorage: `#preview=local`
 - Wikipedia rich info cards on hotspot hover (fetches lead image + extract from REST API)
 - Handles TOML + JSON formats via server API
@@ -153,6 +155,7 @@ photospheres/
 │   ├── validate-pannellum.mjs       # Pannellum JSON Schema validator + auto-fix
 │   └── create-panotour-templates.py # Pywikibot script for Commons template creation
 ├── tests/
+│   ├── tour-viewer.spec.js          # Tour viewer URL params, scene nav, status, state (15 tests)
 │   ├── studio-behaviors.spec.js     # Studio interaction behavior tests
 │   └── mobile-gyro.spec.js          # Mobile gyroscope toggle tests
 └── prototype/
@@ -351,6 +354,14 @@ photospheres/
 - Created `DEPLOYMENT.md` with complete copy-paste deployment guide
 - Covers Commons template creation (5 templates), Toolforge deploy, verification steps
 - All documentation updated to reflect live deployment status
+
+### Bug Fix: Info Card Pulsing + Close Button (2026-06-18)
+- **Problem 1**: Wikipedia info cards (wp-card-tooltip) pulsed on/off because parent `.wp-card-hotspot` had `animation: info-pulse` animating `opacity` — child card inherited the pulsing
+- **Problem 2**: Clicking × close button opened Wikipedia in new tab instead of dismissing card
+- **Root cause (pulsing)**: CSS `opacity` animation on parent affects all children. Fix: `.wp-card-hotspot:has(.wp-card-tooltip.visible) { animation: none !important; }`
+- **Root cause (close button)**: Pannellum wraps hotspots in `<a target="_blank">` when they have a URL field. Close button click bubbled up to the `<a>` which navigated. Fix: capture-phase click listener on `<a>` parent blocks navigation when click originated inside `.wp-card-tooltip`; close button handler uses `preventDefault()` + `stopPropagation()`
+- **Key finding**: `stopPropagation()` alone doesn't prevent `<a>` default navigation — only `preventDefault()` does
+- **CAVEATS.md** sections 16-17 added documenting both patterns
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference

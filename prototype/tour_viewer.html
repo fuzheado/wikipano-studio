@@ -246,6 +246,9 @@
         .wp-card-tooltip { display: none; }
         .wp-card-tooltip.visible { display: block; }
 
+        /* Stop pulsing animation when card is open (prevents card content from flickering) */
+        .wp-card-hotspot:has(.wp-card-tooltip.visible) { animation: none !important; }
+
         /* Close button for info popups */
         .info-popup-close {
             position: absolute; top: 6px; right: 8px;
@@ -628,7 +631,7 @@ function setStatus(message, type) {
 
 // ── Viewer ──────────────────────────────────────────────────────────────────
 
-function loadTour(configUrl) {
+function loadTour(configUrl, targetScene) {
     setStatus('Loading tour...', 'loading');
     document.getElementById('tourInfo').style.display = 'none';
 
@@ -686,6 +689,10 @@ function loadTour(configUrl) {
                 interceptInfoHotspots();
                 openHotspotsFromURL();
                 setupGyroscopeButton();
+                // Jump to a specific scene if ?scene=... was in the URL
+                if (targetScene && tourData.scenes && tourData.scenes[targetScene]) {
+                    try { viewer.loadScene(targetScene); } catch(e) { console.warn('Scene jump failed:', e); }
+                }
                 setStatus('Tour loaded successfully \u2713', 'ok');
             });
 
@@ -1032,7 +1039,17 @@ function wikipediaCardTooltip(hotSpotDiv, args) {
     card.className = 'wp-card-tooltip';
     card.innerHTML = '<button class="info-popup-close" title="Close">×</button><div class="wp-card-loading">Loading...</div>';
     hotSpotDiv.appendChild(card);
-    card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
+
+    // Close button handler: preventDefault + stopPropagation to block both
+    // the parent <a> navigation and the hotspot toggle
+    function bindCloseBtn(btn) {
+        btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.remove('visible');
+        };
+    }
+    bindCloseBtn(card.querySelector('.info-popup-close'));
 
     // Fetch article summary from Wikipedia API
     var title = args.title;
@@ -1049,14 +1066,14 @@ function wikipediaCardTooltip(hotSpotDiv, args) {
                 '<p>' + escapeHTML(extract) + '</p>' +
                 '<a href="' + (data.content_urls?.desktop?.page || args.url) + '" target="_blank" class="wp-card-link">Read on Wikipedia →</a>' +
                 '</div>';
-            card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
+            bindCloseBtn(card.querySelector('.info-popup-close'));
         })
         .catch(function() {
             card.innerHTML = '<button class="info-popup-close" title="Close">×</button><div class="wp-card-body">' +
                 '<h3>' + escapeHTML(title.replace(/_/g, ' ')) + '</h3>' +
                 '<a href="' + args.url + '" target="_blank" class="wp-card-link">View on Wikipedia →</a>' +
                 '</div>';
-            card.querySelector('.info-popup-close').onclick = function(e) { e.stopPropagation(); card.classList.remove('visible'); };
+            bindCloseBtn(card.querySelector('.info-popup-close'));
         });
 }
 
@@ -1121,7 +1138,27 @@ function _doInterceptInfo(panorama) {
         el.dataset.infoIntercepted = '1';
         el.onmouseenter = null;
         el.onmouseleave = null;
+
+        // Pannellum wraps hotspots in <a target="_blank"> when they have a URL.
+        // Intercept clicks on the <a> parent so that clicks inside the tooltip card
+        // (close button, images, text) don't trigger navigation — but actual links
+        // inside the card (e.g. "Read on Wikipedia") should still work.
+        var anchorParent = el.closest('a');
+        if (anchorParent) {
+            anchorParent.addEventListener('click', function(e) {
+                if (e.target.closest('.wp-card-tooltip')) {
+                    // Allow clicks on actual links inside the card to navigate
+                    if (e.target.closest('a[href]')) return;
+                    // Block everything else (close button, images, text)
+                    e.preventDefault();
+                    return false;
+                }
+            }, true); // capture phase — fires before the <a> default action
+        }
+
         el.onclick = function(e) {
+            // Don't intercept clicks on links inside the card (e.g. "Read on Wikipedia")
+            if (e.target.closest('.wp-card-tooltip a[href]')) return;
             e.preventDefault(); e.stopPropagation();
             var card = this.querySelector('.wp-card-tooltip');
             if (card) { card.classList.toggle('visible'); }
@@ -1251,7 +1288,7 @@ function loadPreviewConfig(config) {
 
 // ── UI Handlers ─────────────────────────────────────────────────────────────
 
-function handleLoad() {
+function handleLoad(targetScene) {
     const input = document.getElementById('tourInput');
     const tourPage = input.value.trim();
     if (!tourPage) {
@@ -1260,7 +1297,7 @@ function handleLoad() {
     }
 
     const configUrl = CONFIG_BACKEND + encodeURIComponent(tourPage);
-    loadTour(configUrl);
+    loadTour(configUrl, targetScene);
 }
 
 function handleKeyPress(e) {
@@ -1283,6 +1320,18 @@ function escapeHTML(str) {
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('loadBtn').addEventListener('click', handleLoad);
     document.getElementById('tourInput').addEventListener('keypress', handleKeyPress);
+
+    // Check for query string params (?page=...&scene=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const pageParam = urlParams.get('page');
+    const sceneParam = urlParams.get('scene');
+
+    if (pageParam) {
+        // Query string mode — same params as studio
+        document.getElementById('tourInput').value = pageParam;
+        handleLoad(sceneParam);
+        return;
+    }
 
     // Auto-load from URL hash
     const hash = window.location.hash.slice(1);
@@ -1360,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Standard wiki page title
         document.getElementById('tourInput').value = hash;
-        handleLoad();
+        handleLoad(sceneParam);
     } else {
         // Auto-load the example tour on page load
         handleLoad();

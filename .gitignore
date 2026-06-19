@@ -1,6 +1,29 @@
+# Node
 node_modules/
-cache/
-images/
+npm-debug.log*
+
+# Prototype runtime
+prototype/cache/
+prototype/images/
+apicache/
+throttle.ctrl
+
+# Playwright
+test-results/
+tests/.playwright-cli/
 .playwright-cli/
-*.log
+
+# OS
 .DS_Store
+*.swp
+*.swo
+
+# Backups
+*~
+
+# Screenshots
+screenshots/
+
+# Python
+__pycache__/
+*.pyc

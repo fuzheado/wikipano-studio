@@ -81,6 +81,11 @@ node tour_server.mjs
 # Demo: http://localhost:8765/studio.html?page=User:Fuzheado/Panellum_Tour
 ```
 
+**Tour Viewer URL parameters** (same as Studio):
+- `?page=User:Fuzheado/Panellum_Tour` — load a tour by wiki page title
+- `?scene=Museum` — jump to a specific scene after load
+- Example: `http://localhost:8765/tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=Museum`
+
 **Requires**: Node.js 18+ (zero external dependencies — uses only built-in modules)
 
 **Run tests**:
@@ -103,12 +108,14 @@ photospheres/
 ├── adr/                    # Architecture Decision Records
 ├── RESEARCH_REPORT.md      # Library landscape analysis
 ├── PRD.md                  # Product requirements
-├── DEVELOPMENT.md          # Build status + roadmap
+├── DEVELOPMENT.md          # Build log
+├── FEATURE_REQUESTS.md     # Backlog of planned features
 ├── DEBUGGING.md            # Visual debugging with playwright-cli
 ├── CAVEATS.md              # Gotchas & lessons learned (read before touching hotspot CSS or paths)
 ├── HANDOVER.md             # Session log + current-state quick reference
 ├── DEPLOYMENT.md           # Step-by-step deployment guide for Toolforge + Commons templates
 ├── tests/                  # Playwright test suite
+│   ├── tour-viewer.spec.js       # Tour viewer URL params, scene nav, status, state
 │   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
 │   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
 ├── playwright.config.js    # Playwright configuration
@@ -168,6 +175,7 @@ panorama = "File:My_Photo.jpg"
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
 | 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
 | 2.5 — Deploy | ✅ **Done** | Deployed at **wikipano.toolforge.org**, `{{PanoTour}}` template on Commons |
+| 2.6 — Scope | ⬜ Planned | Multi-wiki support + Wikimedia content restrictions — see `FEATURE_REQUESTS.md` |
 | 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery, OAuth save |
 
 ## License

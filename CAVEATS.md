@@ -315,3 +315,131 @@ function getSceneThumbnail(scene) {
 ```
 
 **When adding thumbnails to a new UI**: Always check if the path starts with `/images/`. Never use `scene._thumb` or any direct Commons URL in CSS `background-image` or `<img src>` — the browser will block it.
+
+---
+
+## 16. Pannellum Wraps Hotspots in `<a target="_blank">` for URL Hotspots
+
+When a hotspot has a `URL` field, Pannellum wraps the hotspot `<div>` in an `<a href="..." target="_blank">` element. This creates a **nested click handler problem**: clicking anything inside the hotspot (close button, tooltip links) bubbles up to the `<a>` and triggers navigation.
+
+### DOM Structure (unexpected)
+```html
+<a href="https://en.qrwp.org/..." target="_blank">  ← Pannellum adds this
+  <div class="pnlm-hotspot-base wp-card-hotspot">
+    <div class="wp-card-tooltip visible">
+      <button class="info-popup-close">×</button>  ← click here opens new tab!
+    </div>
+  </div>
+</a>
+```
+
+### Fix
+In `_doInterceptInfo()`, add a **capture-phase** click listener on the `<a>` parent that blocks navigation when the click originated inside `.wp-card-tooltip`:
+
+```javascript
+var anchorParent = el.closest('a');
+if (anchorParent) {
+    anchorParent.addEventListener('click', function(e) {
+        if (e.target.closest('.wp-card-tooltip')) {
+            e.preventDefault();  // block <a> navigation
+            return false;
+        }
+    }, true);  // capture phase — fires before <a> default action
+}
+```
+
+Also, close button handlers must use `e.preventDefault()` **in addition to** `e.stopPropagation()` — `stopPropagation` alone doesn't prevent the `<a>` default action.
+
+### Why `stopPropagation` alone isn't enough
+`stopPropagation()` prevents bubbling to parent elements, but the `<a>` element's default navigation action fires **after** all handlers complete. Only `preventDefault()` stops the navigation.
+
+---
+
+## 17. CSS Opacity Animations Affect All Children
+
+The `info-pulse` keyframe animates `opacity` on `.wp-card-hotspot`. Since the `.wp-card-tooltip` card is a **child** of the hotspot div, the entire card (text, images, close button) pulses opacity too.
+
+### Fix
+Stop the animation when the card is open using `:has()`:
+
+```css
+.wp-card-hotspot:has(.wp-card-tooltip.visible) {
+    animation: none !important;
+}
+```
+
+**Rule of thumb**: If a parent element has a pulsing/glowing animation, check whether any child elements (tooltips, cards, overlays) inherit the animation undesirably. Use `:has()` or a JS-toggled class to suppress the animation when child content is visible.
+
+---
+
+## 18. Reusable Patterns
+
+### Capture-Phase Anchor Interceptor
+
+Pannellum wraps hotspots in `<a target="_blank">` when they have a URL. Any interactive element inside (close button, form input, inner link) will trigger navigation on click. This pattern blocks it:
+
+```javascript
+// Add to _doInterceptInfo or wherever hotspots are initialized
+var anchorParent = el.closest('a');
+if (anchorParent) {
+    anchorParent.addEventListener('click', function(e) {
+        if (e.target.closest('.your-interactive-child')) {
+            e.preventDefault();  // blocks <a> navigation
+        }
+    }, true);  // capture phase — fires before <a> default action
+}
+```
+
+Works for: close buttons, form inputs, dropdown menus, or any interactive element nested inside a Pannellum hotspot card.
+
+### `stopPropagation()` vs `preventDefault()`
+
+| | `stopPropagation()` | `preventDefault()` |
+|---|---|---|
+| **Prevents** | Event bubbling to parent elements | Element's own default action |
+| **Doesn't prevent** | Default action (navigation, form submit) | Other handlers on the same element |
+| **Use when** | You don't want parent handlers to fire | You don't want the browser to do its default thing |
+
+Common mistake: using `stopPropagation()` on a close button inside an `<a>` tag. The event stops bubbling, but the `<a>` still navigates. You need `preventDefault()` for that.
+
+### Selective Event Blocking in Nested Interactive Elements
+
+When you have multiple interactive elements nested inside each other (e.g., a close button AND a navigation link inside a tooltip card inside a hotspot), **don't blanket-block all clicks**. You need to be selective:
+
+```javascript
+// ❌ BROKEN — blocks ALL clicks, including "Read on Wikipedia" links
+anchorParent.addEventListener('click', function(e) {
+    if (e.target.closest('.wp-card-tooltip')) {
+        e.preventDefault();
+    }
+}, true);
+
+// ✅ CORRECT — exempts actual links inside the card
+anchorParent.addEventListener('click', function(e) {
+    if (e.target.closest('.wp-card-tooltip')) {
+        if (e.target.closest('a[href]')) return;  // let links navigate
+        e.preventDefault();  // block everything else
+    }
+}, true);
+```
+
+The same applies to the parent element's onclick handler — it must also skip when the click is on a child element that should navigate:
+
+```javascript
+el.onclick = function(e) {
+    // Skip if clicking a link inside the card
+    if (e.target.closest('.wp-card-tooltip a[href]')) return;
+    e.preventDefault(); e.stopPropagation();
+    // ... toggle card visibility
+};
+```
+
+### Checklist: Nested Interactive Elements
+
+When adding a new interactive element inside a Pannellum hotspot card, verify all three event layers:
+
+1. **Capture-phase `<a>` interceptor** — does it allow/block the right clicks?
+2. **Hotspot `onclick`** — does it skip when the click is on the new element?
+3. **Element's own handler** — does it use both `preventDefault()` and `stopPropagation()`?
+
+Test all three scenarios: open card, interact with new element, close card.
