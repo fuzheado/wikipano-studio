@@ -103,17 +103,36 @@ function jsonResponse(res, status, data) {
 }
 
 async function serveStatic(res, pathname) {
-    const filePath = join(__dirname, pathname === '/' ? 'tour_viewer.html' : pathname);
+    // Route clean URLs to HTML files
+    const routeMap = {
+        '/': 'tour_viewer.html',
+        '/studio': 'studio.html',
+    };
+    const filePath = join(__dirname, routeMap[pathname] || pathname);
     if (!filePath.startsWith(__dirname)) {
         res.writeHead(403); res.end('Forbidden'); return;
     }
     try {
-        const content = await readFile(filePath);
+        const stat = await (await import('node:fs/promises')).stat(filePath);
         const ext = '.' + filePath.split('.').pop();
-        res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+        const headers = {
+            'Content-Type': MIME[ext] || 'application/octet-stream',
+            'Content-Length': stat.size,
+        };
+        
+        // Add caching headers for images (1 week browser cache)
+        if (pathname.startsWith('/images/')) {
+            headers['Cache-Control'] = 'public, max-age=604800, immutable';
+            headers['Vary'] = 'Accept-Encoding';
+        }
+        
+        res.writeHead(200, headers);
+        const content = await readFile(filePath);
         res.end(content);
     } catch {
-        res.writeHead(404); res.end('Not found');
+        // Don't cache 404 errors — always revalidate
+        res.writeHead(404, { 'Cache-Control': 'no-store' });
+        res.end('Not found');
     }
 }
 
@@ -239,8 +258,7 @@ async function jsonCacheGet(key, compute) {
 async function resolveCommonsFile(filename, wikiConfig = WIKI_PREFIXES.commons) {
     const cacheKey = `${wikiConfig.name}:${filename}`;
     return jsonCacheGet(`file:${cacheKey}`, async () => {
-        // Request both thumburl AND url in same call — when thumburl is present,
-        // ii.url correctly returns the original upload URL (not the thumb)
+        // Request thumbnail at 2000px width for faster loading
         const resp = await fetch(`${wikiConfig.api}?${new URLSearchParams({
             action: 'query', titles: filename, prop: 'imageinfo',
             iiprop: 'url|size|thumburl', format: 'json',
@@ -265,7 +283,7 @@ async function resolveCommonsFile(filename, wikiConfig = WIKI_PREFIXES.commons) 
  * Download an image and cache it locally in /images/.
  * Returns a simple path like /images/abc123.jpg.
  */
-async function cacheImage(sourceUrl) {
+async function cacheImage(sourceUrl, originalUrl = null) {
     const hash = createHash('sha256').update(sourceUrl).digest('hex').substring(0, 16);
     const extMatch = sourceUrl.match(/\.(jpg|jpeg|png|webp)(\?|$)/i);
     const ext = extMatch ? extMatch[1] : 'jpg';
@@ -277,14 +295,22 @@ async function cacheImage(sourceUrl) {
     // Check cache freshness
     if (existsSync(filepath)) {
         const stat = await (await import('node:fs/promises')).stat(filepath);
+        // Update access time for LRU tracking
+        await writeFile(filepath + '.access', Date.now().toString());
         if (Date.now() - stat.mtimeMs < CACHE_TTL) {
+            // Add cache-busting version param based on file mtime
+            // This forces browsers to re-fetch if the file was recreated
+            const version = Math.floor(stat.mtimeMs / 1000);
             return {
-                url: `/images/${filename}`,
+                url: `/images/${filename}?v=${version}`,
                 thumb: makeThumbUrl(sourceUrl),
-                original: sourceUrl,
+                original: originalUrl || sourceUrl,
             };
         }
     }
+
+    // Check cache size before downloading
+    await enforceCacheSizeLimit();
 
     // Download
     const resp = await fetch(sourceUrl, {
@@ -293,10 +319,14 @@ async function cacheImage(sourceUrl) {
     });
     if (!resp.ok) throw new Error(`Failed to download image: HTTP ${resp.status}`);
     await writeFile(filepath, Buffer.from(await resp.arrayBuffer()));
+    // Create access time file for LRU
+    await writeFile(filepath + '.access', Date.now().toString());
+    // Add cache-busting version param based on current time
+    const version = Math.floor(Date.now() / 1000);
     return {
-        url: `/images/${filename}`,
+        url: `/images/${filename}?v=${version}`,
         thumb: makeThumbUrl(sourceUrl),
-        original: sourceUrl,
+        original: originalUrl || sourceUrl,
     };
 }
 
@@ -320,11 +350,144 @@ function makeThumbUrl(url) {
     return url;
 }
 
+// ── Cache Management ─────────────────────────────────────────────────────────
+
+const MAX_CACHE_SIZE_MB = 500; // 500MB max cache size
+const CACHE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
+
+/**
+ * Get total cache size in bytes
+ */
+async function getCacheSize() {
+    if (!existsSync(IMG_CACHE_DIR)) return 0;
+    const { readdir } = await import('node:fs/promises');
+    const files = await readdir(IMG_CACHE_DIR);
+    let totalSize = 0;
+    for (const file of files) {
+        if (file.endsWith('.access')) continue;
+        const filepath = join(IMG_CACHE_DIR, file);
+        try {
+            const stat = await (await import('node:fs/promises')).stat(filepath);
+            totalSize += stat.size;
+        } catch (e) { /* ignore */ }
+    }
+    return totalSize;
+}
+
+/**
+ * Get all cache files with their access times for LRU eviction
+ */
+async function getCacheFilesWithAccessTimes() {
+    if (!existsSync(IMG_CACHE_DIR)) return [];
+    const { readdir } = await import('node:fs/promises');
+    const files = await readdir(IMG_CACHE_DIR);
+    const cacheFiles = [];
+    for (const file of files) {
+        if (file.endsWith('.access')) continue;
+        const filepath = join(IMG_CACHE_DIR, file);
+        const accessFile = filepath + '.access';
+        try {
+            const stat = await (await import('node:fs/promises')).stat(filepath);
+            let accessTime = stat.mtimeMs;
+            if (existsSync(accessFile)) {
+                try {
+                    const accessTimeStr = await readFile(accessFile, 'utf-8');
+                    accessTime = parseInt(accessTimeStr, 10) || stat.mtimeMs;
+                } catch (e) { /* use mtime */ }
+            }
+            cacheFiles.push({ path: filepath, accessPath: accessFile, size: stat.size, accessTime });
+        } catch (e) { /* ignore */ }
+    }
+    cacheFiles.sort((a, b) => a.accessTime - b.accessTime);
+    return cacheFiles;
+}
+
+/**
+ * Enforce cache size limit using LRU eviction
+ */
+async function enforceCacheSizeLimit() {
+    try {
+        const currentSize = await getCacheSize();
+        const maxSizeBytes = MAX_CACHE_SIZE_MB * 1024 * 1024;
+        if (currentSize <= maxSizeBytes) return;
+        console.log(`Cache ${(currentSize / 1024 / 1024).toFixed(1)}MB exceeds ${MAX_CACHE_SIZE_MB}MB, evicting...`);
+        const files = await getCacheFilesWithAccessTimes();
+        let freedBytes = 0;
+        const targetFreed = currentSize - maxSizeBytes + (maxSizeBytes * 0.1);
+        for (const file of files) {
+            if (freedBytes >= targetFreed) break;
+            try {
+                await (await import('node:fs/promises')).unlink(file.path);
+                if (existsSync(file.accessPath)) await (await import('node:fs/promises')).unlink(file.accessPath);
+                freedBytes += file.size;
+            } catch (e) { /* ignore */ }
+        }
+        console.log(`Evicted ${(freedBytes / 1024 / 1024).toFixed(1)}MB`);
+    } catch (e) { console.error('Cache eviction error:', e.message); }
+}
+
+/**
+ * Clean up expired cache files
+ */
+async function cleanupExpiredCache() {
+    if (!existsSync(IMG_CACHE_DIR)) return;
+    try {
+        const files = await getCacheFilesWithAccessTimes();
+        const now = Date.now();
+        let cleaned = 0;
+        for (const file of files) {
+            if (now - file.accessTime > CACHE_TTL) {
+                try {
+                    await (await import('node:fs/promises')).unlink(file.path);
+                    if (existsSync(file.accessPath)) await (await import('node:fs/promises')).unlink(file.accessPath);
+                    cleaned++;
+                } catch (e) { /* ignore */ }
+            }
+        }
+        if (cleaned > 0) console.log(`Cleaned ${cleaned} expired cache files`);
+    } catch (e) { console.error('Cache cleanup error:', e.message); }
+}
+
+// Start periodic cache cleanup
+setInterval(cleanupExpiredCache, CACHE_CHECK_INTERVAL_MS);
+
+// ── Pre-fetching ───────────────────────────────────────────────────────────
+
+/**
+ * Pre-fetch images for scenes linked from the starting scene.
+ * Runs in background without blocking the response.
+ */
+async function preFetchLinkedScenes(tour, startSceneId) {
+    const startScene = tour.scenes?.[startSceneId];
+    if (!startScene?.hotSpots) return;
+    const linkedSceneIds = startScene.hotSpots
+        .filter(hs => hs.type === 'scene' && hs.sceneId)
+        .map(hs => hs.sceneId);
+    if (linkedSceneIds.length === 0) return;
+    console.log(`Pre-fetching ${linkedSceneIds.length} linked scene(s) from "${startSceneId}"...`);
+    for (const sceneId of linkedSceneIds) {
+        const scene = tour.scenes[sceneId];
+        if (!scene?.panorama) continue;
+        const hash = createHash('sha256').update(scene.panorama).digest('hex').substring(0, 16);
+        const extMatch = scene.panorama.match(/\.(jpg|jpeg|png|webp)(\?|$)/i);
+        const ext = extMatch ? extMatch[1] : 'jpg';
+        const filename = `${hash}.${ext}`;
+        const filepath = join(IMG_CACHE_DIR, filename);
+        if (existsSync(filepath)) {
+            console.log(`  ${sceneId}: already cached`);
+            continue;
+        }
+        cacheImage(scene.panorama)
+            .then(() => console.log(`  ${sceneId}: pre-fetched`))
+            .catch(err => console.log(`  ${sceneId}: pre-fetch failed (${err.message})`));
+    }
+}
+
 async function resolvePanorama(panorama, wikiConfig = WIKI_PREFIXES.commons) {
     const fileMatch = panorama.match(/^File:\s*(.+)$/i);
     if (fileMatch) {
         const result = await resolveCommonsFile('File:' + fileMatch[1].trim(), wikiConfig);
-        return cacheImage(result.url);
+        return cacheImage(result.url, result.original);
     }
     if (panorama.startsWith('http://') || panorama.startsWith('https://')) {
         return cacheImage(panorama);
@@ -386,6 +549,12 @@ async function handleTourAPI(res, rawPageTitle) {
             totalScenes: Object.keys(tour.scenes).length,
         };
         if (errors.length > 0) tour._meta.warnings = errors;
+
+        // Pre-fetch linked scenes in background (non-blocking)
+        const startSceneId = tour.default?.firstScene || Object.keys(tour.scenes)[0];
+        if (startSceneId) {
+            preFetchLinkedScenes(tour, startSceneId).catch(() => {});
+        }
 
         jsonResponse(res, 200, tour);
     } catch (e) {
@@ -486,7 +655,8 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`\n🔭  Wikimedia Photosphere Tour — Phase 1 Prototype`);
-    console.log(`    Viewer: http://localhost:${PORT}/tour_viewer.html`);
+    console.log(`    Viewer: http://localhost:${PORT}/?page=User:Fuzheado/Panellum_Tour`);
+    console.log(`    Studio: http://localhost:${PORT}/studio?page=User:Fuzheado/Panellum_Tour`);
     console.log(`    API:    http://localhost:${PORT}/api/tour?page=User:Fuzheado/Panellum_Tour`);
     console.log(`            http://localhost:${PORT}/api/tour?page=en:Wikipedia_tour`);
     console.log(`    Images: http://localhost:${PORT}/images/ (cached from Commons)\n`);

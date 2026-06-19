@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-19 (updated)
-**Session**: Multi-wiki support, starting scene, thumbnail fix
+**Session**: FR-16 tests, FR-17 spec, URL shareability, video features spec
 
 ---
 
@@ -29,6 +29,21 @@
 | **Mobile gyroscope toggle** | ✅ |
 | **Toolforge deployment** | ✅ **wikipano.toolforge.org** |
 | **Multi-wiki tour loading** | ✅ FR-01 |
+| **Immersive mode (FR-09)** | ✅ Default view, toggle (☰), keyboard shortcuts |
+| **Immersive mode stickiness (FR-16)** | ✅ URL ?mode= param + tour JSON viewMode, no localStorage |
+| **FR-16 tests** | ✅ 18 tests in `tests/immersive-mode.spec.js` |
+| **URL shareability** | ✅ Input box load updates URL via pushState |
+| **Cache management (FR-10)** | ✅ 500MB LRU, pre-fetching |
+| **Cache-busting** | ✅ `?v=` param on image URLs |
+| **Browser caching headers** | ✅ `Cache-Control: immutable` |
+| **Mobile fullscreen** | ✅ ⛶ button, auto-gyro on first tap |
+| **JSON canonical, TOML legacy** | ✅ Export always JSON, ingest both formats |
+| **New Project button** | 🔲 FR-12 Not implemented |
+| **Default naming** | 🔲 FR-13 Not implemented |
+| **Tour metadata editor** | 🔲 FR-14 Not implemented |
+| **Info overlays (FR-17)** | 📋 Spec in `specs/FR-17-info-overlays.md` |
+| **Video title/caption (FR-18)** | 📋 Spec in FEATURE_REQUESTS.md |
+| **Video timecodes (FR-19)** | 📋 Spec in FEATURE_REQUESTS.md |
 
 ### Architecture Quick Notes
 - **Hotspot subtype pattern**: `hotspotSubtype` (audio/video) + custom URL fields → Pannellum `type: "info"`
@@ -38,7 +53,9 @@
 - **5-step rule**: Every new field must touch storage, import, export, preview, validation.
 - **Multi-wiki support**: Page parameter accepts `prefix:Page` format (e.g., `en:Wikipedia_tour`). Default: `commons:`. Supported: commons, en, de, fr, es, it, ja, zh, ru, pt, wikidata.
 - **Starting scene**: `state.startingSceneId` tracks the tour's first scene. Set via ⭐ button in properties panel. Export/preview use this instead of active scene.
+- **View mode**: `state.viewMode` ('immersive'|'detailed') controls initial viewer mode. Priority: URL ?mode= > tour JSON default.viewMode > default 'immersive'. No localStorage persistence.
 - **Thumbnail fix**: `addScene()` is async and resolves `File:` references to `/images/` paths before rendering thumbnails.
+- **JSON is canonical, TOML is legacy**: JSON is the primary format; TOML is supported for ingestion only (backward compatibility). Export always produces JSON. See FEATURE_REQUESTS.md §12.
 
 ### Pannellum 2.5.7 Gotchas
 1. All hotspots use `cssClass` + custom CSS with `::after` for icons (no longer rely on Pannellum sprites)
@@ -46,13 +63,15 @@
 3. Literal `<script>` in HTML comments breaks the page
 4. `::after` pseudo-element overlays icon on top of any child elements (works with Wikipedia cards)
 5. **Gyroscope requires HTTPS**: Pannellum's `isOrientationSupported()` returns false on `http:` — only works on `https:` (privacy requirement for DeviceOrientationEvent API)
+6. **JSON is canonical, TOML is legacy**: JSON is the primary format; TOML is supported for ingestion only (backward compatibility). Export always produces JSON.
 
 ### Roadmap
 - **Phase 2.5**: ✅ **Done** — deployed at **wikipano.toolforge.org**
-  - Tour Viewer: https://wikipano.toolforge.org/tour_viewer.html
-  - Studio: https://wikipano.toolforge.org/studio.html
+  - Tour Viewer: https://wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour
+  - Studio: https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
   - `{{PanoTour}}` template: instructions in `DEPLOYMENT.md`
   - Pending: Multires tiling, OAuth save-to-wiki
+- **Phase 2.7**: ✅ **Done** — Immersive mode, cache management, mobile UX
 - **Phase 3**: Auto-popup in field of view, GPS/maps, gallery, multilingual, tour discovery
 
 ### Debug Commands
@@ -69,8 +88,8 @@ playwright-cli console
 ## Quick Start (Next Session)
 
 ### Live
-- https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Panellum_Tour
-- https://wikipano.toolforge.org/tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=Museum
+- https://wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour
+- https://wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour&scene=Museum
 - https://wikipano.toolforge.org/studio.html?page=User:Fuzheado/Panellum_Tour
 
 ### Multi-Wiki Examples
@@ -101,6 +120,14 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - Wikipedia rich info cards on hotspot hover (fetches lead image + extract from REST API)
 - Handles TOML + JSON formats via server API
 - **Mobile gyroscope toggle**: 🧭 button in footer (only visible on mobile + HTTPS)
+- **Immersive mode (FR-09)**: Panorama fills viewport, no sidebar on load
+  - Toggle button (☰) top-right to show/hide sidebar
+  - Footer shows on hover in immersive mode
+  - Keyboard shortcuts: Esc (toggle sidebar), F (fullscreen), G (gyro)
+  - Persisted to localStorage
+- **Fullscreen**: ⛶ button in footer, works on mobile (iOS 12+)
+- **Mobile UX**: Auto-enable gyroscope on first tap, fullscreen button prominent
+- **Cache-busting**: Image URLs include `?v=<mtime>` to prevent stale cache
 
 ### Visual Studio (`studio.html` + `studio.js`)
 - 360° viewport with click-to-capture coordinates for hotspot placement
@@ -134,6 +161,12 @@ Do NOT run `rm -rf cache images` on startup - that wipes cached Commons images a
 - TOML parser (subset: sections, arrays of tables, strings, numbers, booleans)
 - Commons image download + SHA-256 hash caching with 1-hour TTL
 - Commons thumbnail URL generation (200px for scene list)
+- **Cache management**: 500MB LRU with `.access` tracking files
+- **Pre-fetching**: Linked scene images pre-fetched in background on tour load
+- **Browser caching**: `Cache-Control: public, max-age=604800, immutable` for images
+- **Cache-busting**: Image URLs include `?v=<mtime>` to prevent stale cache
+- **Error responses**: 404s sent with `Cache-Control: no-store`
+- **No streaming**: Always use `readFile()` for Pannellum images (streaming breaks XHR)
 
 ### PHP Reference (`tour_config.php`)
 - Standalone PHP equivalent for environments that can't run Node.js
@@ -361,6 +394,52 @@ photospheres/
 - Files owned by `alih` group `tools.wikipano` — rsync creates as `alih:wikidev`, corrected via `become`
 - Gyroscope confirmed working on mobile over HTTPS 🎉
 
+### Immersive Mode Deployment (2026-06-19)
+- FR-09 implemented: Immersive full-screen default view
+- Deployed to Toolforge: `/data/project/wikipano/www/js/tour_viewer.html`
+- Features: immersive mode, toggle sidebar (☰ top-right), fullscreen button (⛶), keyboard shortcuts (Esc/F/G)
+- Default: starts in immersive mode (panorama fills viewport)
+- Footer shows on hover in immersive mode
+- Fullscreen button always visible (mobile + desktop)
+- Mobile UX: Auto-gyro on first tap, prominent fullscreen button
+- Note: iOS Fullscreen API has limited support; immersive mode is fallback
+
+### Cache Management & Pre-fetching (2026-06-19)
+- **Cache size limit**: 500MB max with LRU eviction
+- **Pre-fetching**: Linked scene images pre-fetched in background on tour load
+- **LRU tracking**: `.access` files track last access time for eviction
+- **Expired cleanup**: Runs every 5 minutes, removes files older than CACHE_TTL
+- **Permission fix**: Fixed `images/` and `cache/` directory permissions for tools.wikipano
+- **Browser caching**: `Cache-Control: public, max-age=604800, immutable` for images
+- **Cache-busting**: `?v=<mtime>` query parameter on image URLs
+- **Error responses**: 404s sent with `Cache-Control: no-store`
+
+### Thumbnail Optimization (2026-06-18)
+- **Problem**: Original images are 7.8MB each (6528x3264 pixels)
+- **Solution**: Use 2000px thumbnails from Commons API (~150KB each)
+- **Size reduction**: 98% smaller (7.8MB → 150KB)
+- **Implementation**: `resolveCommonsFile()` now requests `iiurlwidth=2000`
+- **Note**: Server pod needs restart to pick up new code (kubeconfig issues prevent manual restart)
+
+### Streaming Bug Fix (2026-06-19)
+- **Problem**: Added `createReadStream().pipe(res)` for large images → broke Pannellum
+- **Symptom**: `net::ERR_FAILED 200 (OK)` — server returns 200 but browser can't read response
+- **Root cause**: Pannellum loads images via XHR + FileReader, expects complete response; streaming doesn't work
+- **Fix**: Removed streaming, use `readFile()` for all images
+- **Lesson documented**: CAVEATS.md §16 "NEVER Stream Responses for Pannellum Image Loading"
+
+### Cache-Busting (2026-06-19)
+- **Problem**: Chrome cached old broken streaming responses; hard refresh didn't clear them
+- **Solution**: Added `?v=<mtime>` query parameter to image URLs
+- **Effect**: Browser treats each version as a new resource, forces fresh download
+- **Also**: Added `Cache-Control: no-store` on 404 responses to prevent caching errors
+
+### Chrome Cache Issue (2026-06-19)
+- **Symptom**: Page works in Incognito but not regular Chrome; hard refresh doesn't help
+- **Root cause**: Chrome internal state (connection pool, DNS cache) stuck from old broken responses
+- **Fix**: Fully quit Chrome (`Cmd+Q`) and restart
+- **Lesson documented**: CAVEATS.md §17 "Chrome May Require Full Restart After Server Changes"
+
 ### DEPLOYMENT.md Created (2026-06-18)
 - Created `DEPLOYMENT.md` with complete copy-paste deployment guide
 - Covers Commons template creation (5 templates), Toolforge deploy, verification steps
@@ -373,6 +452,25 @@ photospheres/
 - **Root cause (close button)**: Pannellum wraps hotspots in `<a target="_blank">` when they have a URL field. Close button click bubbled up to the `<a>` which navigated. Fix: capture-phase click listener on `<a>` parent blocks navigation when click originated inside `.wp-card-tooltip`; close button handler uses `preventDefault()` + `stopPropagation()`
 - **Key finding**: `stopPropagation()` alone doesn't prevent `<a>` default navigation — only `preventDefault()` does
 - **CAVEATS.md** sections 16-17 added documenting both patterns
+
+### Streaming Bug Fix (2026-06-19)
+- **Problem**: Added `createReadStream().pipe(res)` for large images → broke Pannellum
+- **Symptom**: `net::ERR_FAILED 200 (OK)` — server returns 200 but browser can't read response
+- **Root cause**: Pannellum loads images via XHR + FileReader, expects complete response; streaming doesn't work
+- **Fix**: Removed streaming, use `readFile()` for all images
+- **Lesson documented**: CAVEATS.md §16 "NEVER Stream Responses for Pannellum Image Loading"
+
+### Cache-Busting (2026-06-19)
+- **Problem**: Chrome cached old broken streaming responses; hard refresh didn't clear them
+- **Solution**: Added `?v=<mtime>` query parameter to image URLs
+- **Effect**: Browser treats each version as a new resource, forces fresh download
+- **Also**: Added `Cache-Control: no-store` on 404 responses to prevent caching errors
+
+### Chrome Cache Issue (2026-06-19)
+- **Symptom**: Page works in Incognito but not regular Chrome; hard refresh doesn't help
+- **Root cause**: Chrome internal state (connection pool, DNS cache) stuck from old broken responses
+- **Fix**: Fully quit Chrome (`Cmd+Q`) and restart
+- **Lesson documented**: CAVEATS.md §17 "Chrome May Require Full Restart After Server Changes"
 
 ### Previous (2026-06-15)
 - Created `DEBUGGING.md` - 734-line visual debugging reference

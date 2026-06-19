@@ -474,3 +474,150 @@ async function addScene(imageUrl, title) {
 **Lesson**: When creating objects that will be rendered immediately, ensure all URLs are resolved to their final form before rendering. Don't assume the rendering function can handle intermediate states.
 
 **Related**: This is similar to the export/preview path issue (CAVEATS.md §11) where `_original` fields must be set before export.
+
+---
+
+## 16. Chrome May Require Full Restart After Server Changes
+
+**Date**: 2026-06-19
+
+**Symptom**: Page works in Incognito and fresh Playwright browser, but not in regular Chrome. Hard refresh (`Cmd+Shift+R`) doesn't help.
+
+**Root Cause**: Chrome maintains internal state (connection pools, DNS cache, TLS session cache) that isn't cleared by hard refresh. When the server changes behavior (e.g., removing streaming, adding cache-busting), Chrome may reuse stale connections or cached responses from the old server behavior.
+
+**Solution**: Fully quit Chrome (`Cmd+Q` on Mac, `Ctrl+Shift+W` on Windows) and restart it. This clears all internal state.
+
+**Why Incognito works**: Incognito mode starts with fresh internal state — no cached connections, no DNS cache, no TLS sessions.
+
+**Rule of Thumb**: If a page works in Incognito but not in regular Chrome, and hard refresh doesn't help, fully quit and restart Chrome before debugging further.
+
+---
+
+## 16. NEVER Stream Responses for Pannellum Image Loading
+
+**Date**: 2026-06-19
+**Symptom**: `net::ERR_FAILED 200 (OK)` — server returns HTTP 200 but browser fails to read response as Blob.
+**Error**: `Failed to execute 'readAsBinaryString' on 'FileReader': parameter 1 is not of type 'Blob'.`
+
+### The Mistake
+
+Using `createReadStream().pipe(res)` for serving large images:
+
+```javascript
+// ❌ BROKEN — causes net::ERR_FAILED 200 (OK)
+if (stat.size > 1024 * 1024) {
+    const { createReadStream } = await import('node:fs');
+    createReadStream(filePath).pipe(res);
+} else {
+    const content = await readFile(filePath);
+    res.end(content);
+}
+```
+
+### Why It Breaks
+
+Pannellum loads panorama images via `XMLHttpRequest` and expects a **complete response** it can read as a Blob. When using `createReadStream().pipe(res)`:
+- The response stream may not finalize properly before XHR tries to read it
+- The browser sees a 200 status but can't construct a valid Blob from the streamed response
+- Result: `net::ERR_FAILED 200 (OK)` — technically successful but practically broken
+
+### The Fix
+
+Always use `readFile()` for serving images to Pannellum:
+
+```javascript
+// ✅ WORKING — loads entire file into memory before responding
+const content = await readFile(filePath);
+res.end(content);
+```
+
+### When Streaming IS OK
+
+- Serving to `<img>` tags (browser handles streaming natively)
+- Serving to `fetch()` with `response.blob()` (different from XHR)
+- Serving video/audio (different loading mechanism)
+
+### When Streaming Is NOT OK
+
+- Pannellum panorama images (uses XHR + FileReader)
+- Any client that reads response as Blob via XHR
+- WebGL texture loading (expects complete response)
+
+### Rule of Thumb
+
+**For Pannellum image serving: always buffer the entire file in memory before responding.** The memory cost is worth the reliability.
+
+---
+
+## 17. Cache-Control Headers Are Critical for Image Performance
+
+**Date**: 2026-06-19
+
+Without `Cache-Control` headers, browsers re-download images on every page load, even if the images haven't changed. Always add caching headers for static assets:
+
+```javascript
+// ✅ Add caching headers for images
+if (pathname.startsWith('/images/')) {
+    headers['Cache-Control'] = 'public, max-age=604800, immutable'; // 1 week
+}
+
+// ✅ Don't cache error responses
+if (err) {
+    res.writeHead(404, { 'Cache-Control': 'no-store' });
+}
+```
+
+This prevents the "works in Incognito but not regular browser" issue where browsers cache error responses.
+
+---
+
+## 18. TOML is Legacy Ingest-Only — JSON is Canonical
+
+**Date**: 2026-06-19
+
+**Decision**: JSON is the canonical format for all tour definitions. TOML is supported for ingestion only (backward compatibility).
+
+### Why
+
+1. **Pannellum uses JSON natively** — no conversion needed
+2. **JSON is the web standard** — all tools and libraries work with it
+3. **Simplifies codebase** — only one format to maintain for export/preview/validation
+4. **Round-trip fidelity** — our TOML parser is a one-to-one mapping of JSON, so conversion is lossless
+
+### Current Behavior
+
+- **Ingestion**: Auto-detects JSON vs TOML, converts TOML to JSON internally
+- **Export**: Always produces JSON (never TOML)
+- **Preview**: Always uses JSON (stored in localStorage)
+- **Studio**: Saves in JSON format only
+
+### TOML Parser Limitations
+
+Our TOML parser (`tour_server.mjs`) supports:
+- Sections (`[section]`)
+- Arrays of tables (`[[array]]`)
+- Strings, numbers, booleans
+- Nested objects
+
+It does NOT support:
+- Datetime values
+- Inline tables
+- Multi-line strings
+- Comments (though we could add support)
+
+### What This Means for Users
+
+1. **Existing TOML wiki pages** — continue to work (ingested and converted to JSON)
+2. **New tours** — should be created in JSON format
+3. **Hand-editing** — users who prefer hand-editing can still use TOML, but it will be converted to JSON on import
+4. **Documentation** — all examples and templates should use JSON format going forward
+
+### Migration Path
+
+**Phase 1** (current): Both formats supported for ingestion
+**Phase 2** (future): Deprecation warnings for TOML ingestion
+**Phase 3** (long-term): Remove TOML parser, require JSON
+
+### Rule of Thumb
+
+**Always use JSON for new work.** TOML is only for backward compatibility with existing wiki pages.

@@ -702,3 +702,1683 @@ Some features depend on others:
 | 3 | FR-05 Export Validation | Medium | FR-02, FR-03 | ⬜ Not started |
 | 4 | FR-03 Panorama Validation | Low | FR-01 | ⬜ Not started |
 | 5 | FR-04 External Link Warning | Low | None | ⬜ Not started |
+
+---
+
+## Phase 2.7: UI Polish & Usability Fixes
+
+**Date**: 2026-06-18
+**Purpose**: Small UI improvements and bug fixes
+
+### FR-06: Text Wrapping in Audio/Video Hotspot Boxes
+
+**Priority**: Low
+**Status**: ⬜ Not started
+**Description**: In the hotspots list in Studio, audio (🎵) and video (🎬) hotspot boxes have text that overflows/pokes out the edge of the container. The text should wrap properly within the box boundaries.
+
+**Current behavior**: Text in audio/video hotspot list items extends beyond the container edge.
+
+**Expected behavior**: Text should wrap and stay contained within the hotspot box boundaries.
+
+**Implementation**: Add CSS `word-wrap: break-word` or `overflow-wrap: break-word` to the hotspot list item container, or adjust the container width/overflow properties.
+
+**Changes needed**:
+- Studio CSS: Add word-wrap properties to hotspot list items
+- May need to adjust container width or add `overflow: hidden`
+- Test with long hotspot text labels
+
+### Phase 2.7 Additions (Pending)
+- Feature 6: FR-06 Text wrapping in audio/video hotspot boxes
+
+---
+
+## Phase 2.8: Wiki Integration & OAuth
+
+**Date**: 2026-06-18
+**Purpose**: Enable direct save/load to/from Wikimedia wiki pages with authentication
+
+### FR-07: Save Tour Back to Wiki (OAuth Integration)
+
+**Priority**: High
+**Status**: ⬜ Not started
+**Description**: Allow users to save their tour directly back to the Wikimedia wiki page they loaded it from (or to a new page). This requires OAuth authentication to write to Wikimedia projects.
+
+**Current workflow**:
+1. Load tour from wiki page (`?page=User:Fuzheado/Panellum_Tour`)
+2. Edit in Studio
+3. Export as JSON (download or copy)
+4. Manually paste back to wiki page
+
+**Desired workflow**:
+1. Load tour from wiki page
+2. Edit in Studio
+3. Click **Save** button → writes directly back to the same wiki page
+4. Optionally **Save As** → writes to a different page name
+
+### User Stories
+
+**US-01: Save to original page**
+- User loads tour from `User:Example/MyTour`
+- Makes edits in Studio
+- Clicks **Save** button
+- Tour JSON is written back to `User:Example/MyTour` on Commons
+- Confirmation message shown
+
+**US-02: Save to new page**
+- User loads tour from `User:Example/MyTour`
+- Makes edits
+- Clicks **Save As** or **Export to Wiki**
+- Enters new page name: `User:Example/MyTour_v2`
+- Tour JSON is written to new page
+- User can optionally delete old page
+
+**US-03: Create new tour from scratch**
+- User starts with empty Studio
+- Creates scenes and hotspots
+- Clicks **Save to Wiki**
+- Enters page name: `User:Example/NewTour`
+- Tour JSON is written to new page
+- URL updates to reflect new page
+
+### Technical Requirements
+
+#### OAuth 2.0 Flow
+
+**Wikimedia OAuth 2.0 (AuthManager)**:
+- Register tool at `https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration`
+- Use `grant_type=authorization_code` flow
+- Scopes needed: `edit`, `createpage` (for new pages)
+- Store OAuth tokens securely (session-based or encrypted local storage)
+
+**Alternative: Bot Passwords**
+- Simpler for single-user tool
+- User creates bot password at `Special:BotPasswords`
+- Use HTTP Basic Auth with bot username + password
+- Less secure, but no OAuth app registration needed
+
+**Recommended**: Start with Bot Passwords for rapid prototyping, migrate to OAuth 2.0 for production.
+
+#### Server Endpoints (New)
+
+```
+POST /api/wiki/save
+  Body: {
+    wiki: "commons",           # wiki prefix
+    page: "User:Example/Tour",  # page title
+    content: "{...json...}",   # tour JSON
+    summary: "Updated via PanoTour Studio",  # edit summary
+    token: "..."               # CSRF or OAuth token
+  }
+  Response: { success: true, newrevid: 123456, newtimestamp: "..." }
+
+POST /api/wiki/auth
+  Body: { username: "...", password: "..." }  # Bot password auth
+  Response: { token: "...", expires: "..." }
+
+GET /api/wiki/check-auth
+  Response: { authenticated: true, user: "...", wiki: "commons" }
+```
+
+#### Action API Integration
+
+Use Wikimedia Action API for edits:
+
+```javascript
+// Fetch CSRF token
+const tokenRes = await fetch(
+  `https://commons.wikimedia.org/w/api.php?action=query&meta=tokens&type=csrf&format=json`,
+  { credentials: 'include' }
+);
+const { query: { tokens: { csrftoken } } } = await tokenRes.json();
+
+// Save page
+const saveRes = await fetch(
+  `https://commons.wikimedia.org/w/api.php`,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      action: 'edit',
+      title: 'User:Example/Tour',
+      text: JSON.stringify(tourJson, null, 2),
+      summary: 'Updated via PanoTour Studio',
+      token: csrftoken,
+      format: 'json'
+    }),
+    credentials: 'include'
+  }
+);
+```
+
+### UI Changes
+
+#### New Buttons in Studio Header
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🎬 PanoTour Studio                                         │
+│                                                             │
+│ [📁 Import] [💾 Save] [📝 Save As] [⬇️ Export] [👁️ Preview] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Save button states**:
+- **Logged out**: Button shows "Login to Save" → opens auth modal
+- **Logged in, loaded from wiki**: Button shows "Save" → writes to original page
+- **Logged in, new/unsaved**: Button shows "Save to Wiki" → opens page name dialog
+
+#### Auth Modal
+
+```
+┌─────────────────────────────────────┐n│ 🔐 Login to Wikimedia               │
+│                                     │
+│ Username: [________________________]│
+│ Bot Password: [____________________]│
+│                                     │
+│ 🔗 How to create a bot password    │
+│                                     │
+│        [Cancel]  [Login]            │
+└─────────────────────────────────────┘
+```
+
+#### Save As Dialog
+
+```
+┌─────────────────────────────────────┐
+│ 💾 Save Tour to Wiki                │
+│                                     │
+│ Wiki: [Commons ▼]                   │
+│ Page: [User:Example/MyTour________] │
+│                                     │
+│ Summary: [Updated via Studio_______]│
+│                                     │
+│ ☐ Create redirect from old page     │
+│                                     │
+│        [Cancel]  [Save]             │
+└─────────────────────────────────────┘
+```
+
+### State Changes
+
+Add to `state` object:
+
+```javascript
+state.auth = {
+    authenticated: false,
+    username: null,
+    wiki: null,           // 'commons', 'en', etc.
+    token: null,          // OAuth or bot password token
+    tokenExpiry: null
+};
+
+state.wikiSource = {
+    wiki: null,           // Original wiki prefix
+    page: null,           // Original page title
+    revision: null,       // Original revision ID (for conflict detection)
+    timestamp: null       // Original edit timestamp
+};
+```
+
+### Conflict Detection
+
+Before saving, check if page was modified since load:
+
+```javascript
+async function checkForConflicts() {
+    const res = await fetch(
+        `/api/wiki/info?page=${state.wikiSource.page}&wiki=${state.wikiSource.wiki}`
+    );
+    const { revision, timestamp } = await res.json();
+    
+    if (revision !== state.wikiSource.revision) {
+        // Page was modified since we loaded it
+        showConflictModal({
+            currentRev: revision,
+            ourRev: state.wikiSource.revision,
+            currentTimestamp: timestamp
+        });
+        return false;
+    }
+    return true;
+}
+```
+
+**Conflict modal options**:
+- **Overwrite**: Save anyway (risky)
+- **Reload**: Discard changes, reload from wiki
+- **Merge**: Open diff view (Phase 3 feature)
+
+### Security Considerations
+
+1. **Token storage**: Never store bot passwords in localStorage. Use session-only cookies or memory.
+2. **HTTPS only**: All API calls must be over HTTPS
+3. **CORS**: Wikimedia API requires proper OAuth signing or bot password auth
+4. **Rate limiting**: Respect API limits (5 edits/second for bots)
+5. **Edit wars**: Show warning if page has been edited >3 times in last hour
+
+### Implementation Effort
+
+**Phase 1 (MVP)**: ~4-6 hours
+- Bot password authentication
+- Save to original page
+- Conflict detection (read-only)
+- Basic error handling
+
+**Phase 2 (Full)**: ~8-12 hours
+- OAuth 2.0 flow
+- Save As dialog
+- Create new pages
+- Edit history diff view
+- Batch save (multiple tours)
+
+### Files to Modify
+
+- `prototype/studio.html` — Add Save/Save As buttons, auth modal
+- `prototype/studio.js` — Add save logic, auth state management
+- `prototype/tour_server.mjs` — Add `/api/wiki/*` endpoints
+- `FEATURE_REQUESTS.md` — Document feature
+- `CAVEATS.md` — Add OAuth gotchas
+
+---
+
+### Phase 2.8 Additions (Pending)
+- Feature 7: FR-07 Save Tour Back to Wiki (OAuth Integration)
+
+---
+
+## Phase 2.9: Scene Naming & URL-Friendly Slugs
+
+**Date**: 2026-06-18
+**Purpose**: Replace random scene IDs with meaningful, customizable, URL-friendly slugs
+
+### FR-08: Custom Scene Names/Slugs
+
+**Priority**: High
+**Status**: ⬜ Not started
+**Description**: Currently, new scenes get random IDs like `scene_1234567890`, which creates ugly, unfriendly URLs like `?scene=scene_1234567890`. Users should be able to set meaningful scene names that become URL-friendly slugs.
+
+**Current behavior**:
+- Add scene → generates `scene_` + random 10-digit number
+- URL: `?scene=scene_3847291056`
+- Not memorable, not shareable, not human-readable
+
+**Desired behavior**:
+- Add scene → user can set name → auto-generates URL-friendly slug
+- URL: `?scene=museum-lobby` or `?scene=tallinn-old-town`
+- Easy to read, share, and remember
+
+### User Stories
+
+**US-01: Auto-generate slug from title**
+- User adds scene with title "Museum Lobby"
+- System auto-generates slug: `museum-lobby`
+- URL becomes `?scene=museum-lobby`
+
+**US-02: Custom slug override**
+- User adds scene, enters title "Museum Lobby"
+- User overrides slug to `lobby`
+- URL becomes `?scene=lobby`
+
+**US-03: Rename scene slug**
+- User has scene with slug `scene_1234567890`
+- User renames to `museum-main`
+- Old URL `?scene=scene_1234567890` gets 301 redirect (if possible) or shows warning
+
+**US-04: Import preserves existing slugs**
+- User imports tour with existing scene IDs
+- Slugs preserved as-is (backward compatible)
+- User can optionally rename after import
+
+### Slug Generation Rules
+
+Convert title to URL-friendly slug:
+
+```javascript
+function generateSlug(title) {
+    return title
+        .toLowerCase()
+        .trim()
+        // Replace spaces with hyphens
+        .replace(/\s+/g, '-')
+        // Remove non-alphanumeric characters (keep hyphens)
+        .replace(/[^a-z0-9-]/g, '')
+        // Collapse multiple hyphens
+        .replace(/-{2,}/g, '-')
+        // Remove leading/trailing hyphens
+        .replace(/^-+|-+$/g, '')
+        // Truncate to 50 chars
+        .substring(0, 50);
+}
+
+// Examples:
+// "Museum Lobby" → "museum-lobby"
+// "Tallinn Old Town (Estonia)" → "tallinn-old-town-estonia"
+// "入口 / Entrance" → "entrance"
+// "Scene 1" → "scene-1"
+```
+
+**Fallback**: If title is empty or generates empty slug, use `scene-{timestamp}` (still random, but at least predictable).
+
+### Uniqueness Enforcement
+
+```javascript
+function ensureUniqueSlug(baseSlug, existingSlugs) {
+    let slug = baseSlug;
+    let counter = 2;
+    while (existingSlugs.includes(slug)) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+    }
+    return slug;
+}
+
+// "museum-lobby" → "museum-lobby" (if unique)
+// "museum-lobby" → "museum-lobby-2" (if taken)
+// "museum-lobby" → "museum-lobby-3" (if -2 also taken)
+```
+
+### UI Changes
+
+#### Scene Properties Panel
+
+Current:
+```
+┌─────────────────────────────────┐
+│ Scene Properties                │
+│                                 │
+│ Title: [Museum Lobby__________] │
+│                                 │
+│ [Set as Default View]           │
+└─────────────────────────────────┘
+```
+
+New:
+```
+┌─────────────────────────────────────────────┐
+│ Scene Properties                            │
+│                                             │
+│ Title: [Museum Lobby____________________]   │
+│ Slug:  [museum-lobby____________________]   │
+│        ^^^^^^^^^^^ auto-generated           │
+│        (editable)                           │
+│                                             │
+│ ℹ️  Used in URL: ?scene=museum-lobby        │
+│                                             │
+│ [Set as Default View]                       │
+└─────────────────────────────────────────────┘
+```
+
+**Slug input behavior**:
+- Auto-populates from title as user types
+- User can override with custom slug
+- Real-time validation: shows ✓ valid or ✗ taken/conflict
+- Debounced uniqueness check against other scenes
+
+#### Add Scene Modal
+
+```
+┌─────────────────────────────────────────────┐n│ 📷 Add Scene                                │
+│                                             │
+│ Panorama: [File:My_Photo.jpg_______________] │
+│                                             │
+│ Title: [________________________]           │
+│ Slug:  [auto-from-title____________]        │
+│                                             │
+│ [Cancel]           [Add Scene]              │
+└─────────────────────────────────────────────┘
+```
+
+### State Changes
+
+Current scene object:
+```javascript
+state.scenes = {
+    "scene_1234567890": {
+        title: "Museum Lobby",
+        panorama: "File:Photo.jpg",
+        hotSpots: [...]
+    }
+};
+```
+
+No structural change needed — scene IDs are already the slug. The change is in **how IDs are generated**:
+- Before: `scene_` + random
+- After: slugified title (or custom override)
+
+### Migration & Backward Compatibility
+
+**Existing tours with random IDs**:
+- Keep old IDs as-is (don't break existing tours)
+- User can manually rename in Studio
+- Show warning: "This scene has a random ID. Consider renaming for better URLs."
+
+**URL redirects** (nice-to-have, Phase 3):
+- If scene is renamed, old `?scene=old-slug` could redirect to `?scene=new-slug`
+- Requires storing a `previousSlugs` array
+- Not critical — users can update shared links manually
+
+### Validation Rules
+
+```javascript
+const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function validateSlug(slug) {
+    if (slug.length === 0) return { valid: false, error: 'Slug cannot be empty' };
+    if (slug.length > 50) return { valid: false, error: 'Slug too long (max 50 chars)' };
+    if (!SLUG_REGEX.test(slug)) return { valid: false, error: 'Use lowercase letters, numbers, and hyphens only' };
+    if (slug.startsWith('-') || slug.endsWith('-')) return { valid: false, error: 'Slug cannot start or end with hyphen' };
+    return { valid: true };
+}
+```
+
+### Implementation Effort
+
+**MVP**: ~2-3 hours
+- Slug generation from title
+- Custom slug input in scene properties
+- Uniqueness validation
+- Update `addScene()` to use slugs
+
+**Full**: ~4-6 hours
+- Rename existing scenes
+- URL redirect mapping
+- Import slug preservation
+- Batch rename tool
+
+### Files to Modify
+
+- `prototype/studio.js` — Add `generateSlug()`, `validateSlug()`, update `addScene()`
+- `prototype/studio.html` — Add slug input to scene properties panel
+- `prototype/tour_viewer.html` — Handle slug-based scene loading
+- `CAVEATS.md` — Document slug generation rules
+
+### URL Impact
+
+**Before**:
+```
+https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Tour?scene=scene_3847291056
+```
+
+**After**:
+```
+https://wikipano.toolforge.org/tour_viewer.html#User:Fuzheado/Tour?scene=museum-lobby
+```
+
+Much cleaner, more shareable, more memorable!
+
+---
+
+### Phase 2.9 Additions (Pending)
+- Feature 8: FR-08 Custom Scene Names/Slugs
+
+---
+
+## Phase 2.10: Immersive Viewing Experience
+
+**Date**: 2026-06-18
+**Purpose**: Full-screen immersive default view with clean URL scheme
+
+### FR-09: Immersive Full-Screen Default View
+
+**Priority**: High
+**Status**: ✅ **Implemented (2026-06-18)**
+**Description**: Tour Viewer should start in full-screen immersive mode by default, with a clean URL scheme. The 360° panorama fills the entire viewport with minimal UI. A toggle button reveals detailed controls (scene list, info panels, etc.).
+
+### Current Behavior
+
+- Tour Viewer loads with sidebar, header, footer always visible
+- No full-screen mode on desktop
+- Mobile has gyroscope button but no full-screen button
+- URL uses hash: `tour_viewer.html#User:Fuzheado/Panellum_Tour`
+
+### Desired Behavior
+
+**URL Scheme**:
+```
+https://wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour
+https://wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour&scene=museum-lobby
+```
+
+**Desktop**:
+- Starts full-screen immersive (panorama fills viewport)
+- Minimal UI: just a small toggle button
+- Click toggle → reveals sidebar + controls
+- Click toggle again → returns to immersive
+
+**Mobile**:
+- Starts full-screen immersive (native fullscreen if possible)
+- Minimal UI: gyroscope button + toggle button
+- Swipe to look around, gyroscope for orientation
+- Tap toggle → reveals scene list as overlay
+
+### User Stories
+
+**US-01: First-time visitor**
+- User clicks link: `wikipano.toolforge.org/?page=User:Example/Tour`
+- Page loads in full-screen immersive mode
+- User sees 360° panorama filling entire screen
+- User can drag/swipe to look around
+- User taps small button in corner → scene list appears
+- User taps scene → transitions to new scene
+- User taps button again → returns to immersive
+
+**US-02: Deep link to specific scene**
+- User clicks: `?page=User:Example/Tour&scene=museum`
+- Loads tour, starts at "museum" scene
+- Same immersive experience
+
+**US-03: Desktop experience**
+- User visits on desktop
+- Panorama fills browser window (no sidebar by default)
+- Click toggle → sidebar slides in from left
+- ESC key → returns to immersive
+
+### UI Design
+
+#### Immersive Mode (Default)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                    360° PANORAMA                            │
+│                    (fills entire viewport)                  │
+│                                                             │
+│                                                             │
+│                                                             │
+│  ┌─────┐                                                   │
+│  │ ≡ │  ← toggle button (bottom-left)                     │
+│  └─────┘                                                   │
+│                                                             │
+│                      🧭 (mobile only)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Detailed Mode (Toggle Open)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ┌──────────┐                                               │
+│ │ Scenes   │                                               │
+│ │ ─────── │    360° PANORAMA                               │
+│ │ [img] Museum│                                            │
+│ │ [img] Street│   (still fills viewport,                   │
+│ │ [img] Park │    sidebar is overlay)                      │
+│ │          │                                               │
+│ │ ─────── │                                               │
+│ │ Info     │                                               │
+│ │ Author   │                                               │
+│ └──────────┘                                               │
+│  ┌─────┐                                                   │
+│  │ ≡ │  ← toggle button (now closes sidebar)             │
+│  └─────┘                                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Mobile Overlay
+
+```
+┌─────────────────────────────┐
+│  ┌───────────────────────┐  │
+│  │ Scenes                │  │
+│  │ ──────────────────── │  │
+│  │ [img] Museum          │  │
+│  │ [img] Street          │  │
+│  │ [img] Park            │  │
+│  │                       │  │
+│  │ [×] Close             │  │
+│  └───────────────────────┘  │
+│                             │
+│    360° PANORAMA            │
+│    (behind overlay)         │
+│                             │
+│              🧭  ≡          │
+└─────────────────────────────┘
+```
+
+### CSS Implementation
+
+```css
+/* Immersive mode - default */
+.tour-viewer.immersive .sidebar {
+    display: none;
+}
+
+.tour-viewer.immersive .header {
+    display: none;
+}
+
+.tour-viewer.immersive .footer {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tour-viewer.immersive .footer:hover {
+    opacity: 1;
+}
+
+/* Toggle button always visible */
+.toggle-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+}
+
+/* Detailed mode - sidebar as overlay */
+.tour-viewer:not(.immersive) .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 999;
+    transition: transform 0.3s;
+}
+
+/* Mobile overlay */
+@media (max-width: 768px) {
+    .tour-viewer:not(.immersive) .sidebar {
+        width: 100%;
+        height: 60%;
+        bottom: 0;
+        top: auto;
+        border-radius: 20px 20px 0 0;
+    }
+}
+```
+
+### JavaScript Logic
+
+```javascript
+// Toggle immersive mode
+function toggleImmersive() {
+    const viewer = document.querySelector('.tour-viewer');
+    viewer.classList.toggle('immersive');
+    
+    // Update button icon
+    const btn = document.querySelector('.toggle-btn');
+    btn.textContent = viewer.classList.contains('immersive') ? '≡' : '×';
+    
+    // Store preference
+    localStorage.setItem('immersive', viewer.classList.contains('immersive'));
+}
+
+// Enter fullscreen on mobile
+function requestFullscreen() {
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
+    }
+}
+
+// Auto-start immersive
+function initImmersive() {
+    const saved = localStorage.getItem('immersive');
+    if (saved !== 'false') {  // Default to immersive
+        document.querySelector('.tour-viewer').classList.add('immersive');
+    }
+    
+    // Request fullscreen on mobile
+    if ('ontouchstart' in window) {
+        requestFullscreen();
+    }
+}
+```
+
+### URL Routing Changes
+
+**Current**:
+```
+tour_viewer.html#User:Fuzheado/Panellum_Tour
+tour_viewer.html?page=User:Fuzheado/Panellum_Tour&scene=museum
+```
+
+**New (additive, backward compatible)**:
+```
+/?page=User:Fuzheado/Panellum_Tour
+/?page=User:Fuzheado/Panellum_Tour&scene=museum-lobby
+```
+
+**Implementation**: Add root `index.html` that redirects or serves `tour_viewer.html` with query params.
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Esc` | Toggle immersive mode |
+| `F` | Toggle fullscreen |
+| `G` | Toggle gyroscope (mobile) |
+| `1-9` | Jump to scene 1-9 |
+
+### Implementation Effort
+
+**MVP**: ~3-4 hours
+- CSS immersive mode
+- Toggle button
+- Mobile fullscreen request
+- URL param routing
+
+**Full**: ~6-8 hours
+- Keyboard shortcuts
+- Smooth transitions
+- localStorage preferences
+- Scene list overlay for mobile
+
+### Files to Modify
+
+- `prototype/tour_viewer.html` — Add toggle button, immersive CSS, fullscreen API
+- `prototype/tour_viewer.html` — Update URL routing for clean `?page=` scheme
+- `prototype/tour_server.mjs` — Serve root `index.html` if needed
+- `FEATURE_REQUESTS.md` — Document feature
+
+### Mobile Full-Screen Button Issue
+
+**Bug**: Mobile view only shows gyroscope button, no full-screen button.
+
+**Root Cause** (confirmed 2026-06-18):
+- **No fullscreen button exists** in `tour_viewer.html` at all - no HTML element for it
+- The gyroscope button is the ONLY button with conditional mobile visibility
+- CSS: `#gyro-btn { display: none; }` (hidden by default)
+- JavaScript shows it only if:
+  - `'ontouchstart' in window || navigator.maxTouchPoints > 0` (mobile device)
+  - `viewer.isOrientationSupported()` returns true
+
+**Footer HTML** (lines 552-562):
+```html
+<footer>
+    <span>Powered by Pannellum</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button id="gyro-btn" title="Toggle device gyroscope control">
+            <span class="icon">🧭</span>
+            <span class="label">Gyro</span>
+        </button>
+        <button id="toggleAllInfoBtn">👁 Show all popups</button>
+    </div>
+    <span>Tour JSON stored on Wikimedia Commons</span>
+</footer>
+```
+
+**Fix needed**:
+1. Add fullscreen button to footer HTML
+2. Add CSS for fullscreen button visibility (show on both mobile and desktop)
+3. Add JavaScript for Fullscreen API (`requestFullscreen()`)
+4. Consider making it always visible (not conditionally hidden like gyro)
+
+---
+
+### Phase 2.10 Additions (Done)
+- Feature 9: FR-09 Immersive Full-Screen Default View ✅
+
+### Mobile UX Improvements (2026-06-19)
+- **Auto-gyro on first tap**: iOS requires user gesture to enable gyroscope
+- **Fullscreen button prominent**: Larger, colored button on mobile
+- **Prompt**: "👆 Tap to enable gyroscope & fullscreen" on first load
+- **Note**: iOS Fullscreen API has limited support; immersive mode is fallback
+
+---
+
+## Phase 2.11: Cache Management & Performance
+
+**Date**: 2026-06-18
+**Purpose**: Smart caching and pre-fetching for faster scene transitions
+
+### FR-10: Image Cache Management
+
+**Priority**: High
+**Status**: ✅ **Implemented (2026-06-18)**
+
+**Implemented features**:
+- **Cache size limit**: 500MB max (configurable via `MAX_CACHE_SIZE_MB`)
+- **LRU eviction**: When cache exceeds limit, oldest accessed files are removed first
+- **Access tracking**: `.access` files track last access time for each cached image
+- **Expired cleanup**: Runs every 5 minutes, removes files older than CACHE_TTL (1 hour)
+- **Pre-fetching**: When a tour loads, images for linked scenes are pre-fetched in background
+
+**How it works**:
+1. When `cacheImage()` is called, it checks cache size before downloading
+2. If cache exceeds 500MB, `enforceCacheSizeLimit()` evicts oldest files
+3. Each cached image has a `.access` file tracking last access time
+4. Periodic cleanup removes expired files (older than CACHE_TTL)
+5. When a tour loads, `preFetchLinkedScenes()` pre-fetches images for linked scenes
+
+**Pre-fetching logic**:
+- Finds all scene hotspots in the starting scene
+- For each linked scene, checks if image is already cached
+- If not cached, downloads in background (non-blocking)
+- Logs pre-fetch status to console
+
+### FR-11: Pre-fetch Linked Scene Images
+
+**Priority**: Medium
+**Status**: ✅ **Implemented (2026-06-18)**
+
+**User story**: When loading a tour, images for scenes linked from the starting scene are pre-fetched in the background, so navigating to those scenes is instant.
+
+**Implementation**:
+- `preFetchLinkedScenes(tour, startSceneId)` function
+- Called after tour resolution in `handleTourAPI()`
+- Runs asynchronously without blocking the response
+- Skips already-cached images
+- Logs pre-fetch progress
+
+---
+
+### Phase 2.11 Additions (Done)
+- Feature 10: FR-10 Image Cache Management ✅
+- Feature 11: FR-11 Pre-fetch Linked Scene Images ✅
+
+---
+
+## Phase 2.12: File Format Decision — TOML vs JSON
+
+**Date**: 2026-06-19
+**Purpose**: Define the canonical format for tour definitions and legacy support strategy
+
+### Decision: JSON is Canonical, TOML is Legacy Ingest-Only
+
+**Status**: ✅ **Decision Made (2026-06-19)**
+
+**Summary**:
+- **JSON** is the canonical, primary format for all tour definitions
+- **TOML** is supported for **ingestion only** (backward compatibility with existing wiki pages)
+- **Export/output** always produces JSON (never TOML)
+- **Studio** saves in JSON format only
+- **Viewer** accepts both formats (for existing wiki pages)
+
+### Rationale
+
+1. **Pannellum uses JSON natively** — the viewer accepts JSON configuration directly
+2. **JSON is the web standard** — all tools, APIs, and libraries work with JSON
+3. **TOML was a convenience** — the hand-editing-friendly format was useful for early prototyping
+4. **Round-trip fidelity** — our TOML parser is a one-to-one mapping of JSON structure, so TOML → JSON conversion is lossless
+5. **Simplifies codebase** — only one format to maintain for export/preview/validation
+
+### Current Behavior
+
+**Ingestion (Viewer + Studio)**:
+```javascript
+// Auto-detect format and convert
+if (content.trim().startsWith('{')) {
+    // JSON format
+    tourData = JSON.parse(content);
+} else {
+    // TOML format → convert to JSON
+    tourData = parseTOML(content);
+}
+```
+
+**Export (Studio)**:
+```javascript
+// Always export as JSON
+const json = JSON.stringify(tourData, null, 2);
+```
+
+**Preview**:
+```javascript
+// Always use JSON (stored in localStorage)
+localStorage.setItem('preview', JSON.stringify(tourData));
+```
+
+### TOML Format Specification
+
+The TOML format is a **one-to-one mapping** of the JSON structure:
+
+**JSON**:
+```json
+{
+  "default": {
+    "firstScene": "museum"
+  },
+  "scenes": {
+    "museum": {
+      "title": "Museum Interior",
+      "panorama": "File:My_Photo.jpg",
+      "hotSpots": [
+        {
+          "pitch": -17.35,
+          "yaw": 33.77,
+          "type": "scene",
+          "sceneId": "street",
+          "text": "Go outside"
+        }
+      ]
+    }
+  }
+}
+```
+
+**TOML** (equivalent):
+```toml
+[default]
+firstScene = "museum"
+
+[scenes.museum]
+title = "Museum Interior"
+panorama = "File:My_Photo.jpg"
+
+  [[scenes.museum.hotSpots]]
+  pitch = -17.35
+  yaw = 33.77
+  type = "scene"
+  sceneId = "street"
+  text = "Go outside"
+```
+
+### What This Means for Users
+
+1. **Existing TOML wiki pages** — continue to work (ingested and converted to JSON internally)
+2. **New tours** — should be created in JSON format (Studio exports JSON)
+3. **Hand-editing** — users who prefer hand-editing can still use TOML, but it will be converted to JSON on import
+4. **Documentation** — all examples and templates should use JSON format going forward
+
+### Implementation Notes
+
+**TOML Parser Location**: `prototype/tour_server.mjs` — `parseTOML()` function
+
+**Supported TOML Features**:
+- Sections (`[section]`)
+- Arrays of tables (`[[array]]`)
+- Strings, numbers, booleans
+- Nested objects
+
+**Unsupported TOML Features** (not needed for our use case):
+- Datetime values
+- Inline tables
+- Multi-line strings
+- Comments (though we could add support)
+
+### Migration Path
+
+**Phase 1** (current): Both formats supported for ingestion
+**Phase 2** (future): Deprecation warnings for TOML ingestion
+**Phase 3** (long-term): Remove TOML parser, require JSON
+
+### Files Involved
+
+- `prototype/tour_server.mjs` — TOML parser and format auto-detection
+- `prototype/studio.js` — Export always uses JSON
+- `prototype/tour_viewer.html` — Ingestion supports both formats
+- `CAVEATS.md` — Document TOML format limitations
+
+### Related ADR
+
+- ADR-004: Dual TOML + JSON format support
+- ADR-006: TOML/JSON/YAML format decision
+
+---
+
+### Phase 2.12 Additions (Done)
+- Feature 12: File Format Decision — TOML vs JSON ✅
+
+---
+
+## Phase 2.13: New Project Creation & Default Naming
+
+**Date**: 2026-06-19
+**Purpose**: Enable starting a new tour from scratch in Studio with sensible defaults
+
+### Problem Statement
+
+**Current workflow to create a new tour**:
+1. Create a blank JSON file on Commons (manual)
+2. Upload to Commons (manual)
+3. Create a wiki page with the JSON content (manual)
+4. Point Studio to the wiki page (`?page=` param)
+5. Start editing
+
+This is cumbersome and defeats the purpose of a visual editor.
+
+**Current default naming**:
+- Scene name: `scene_<timestamp>` (e.g., `scene_1750310400`)
+- Creator: `Wikimedia Commons`
+
+These are not user-friendly and don't communicate what the tour is about.
+
+---
+
+### FR-12: New Project Button in Studio
+
+**Priority**: High
+**Status**: Not implemented
+
+**Description**: Add a "New Project" button in Studio that creates a blank tour definition in memory, allowing users to start editing immediately without first creating a wiki page.
+
+**User Story**:
+1. User opens Studio (`studio.html`)
+2. Clicks "🆕 New Project" button
+3. Studio creates a blank tour with sensible defaults
+4. User adds scenes and hotspots
+5. User exports JSON and saves to wiki page (or uses future OAuth save)
+
+**UI Design**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Studio                                                      │
+├─────────────────────────────────────────────────────────────┤
+│ [🆕 New Project]  [📁 Import]  [💾 Export]                 │
+│                                                             │
+│  If no project loaded:                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                                                     │    │
+│  │         No tour loaded                              │    │
+│  │                                                     │    │
+│  │  [🆕 Start New Project]                             │    │
+│  │                                                     │    │
+│  │  Or import from wiki:                               │    │
+│  │  [Enter wiki page URL...] [Load]                   │    │
+│  │                                                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Implementation**:
+
+```javascript
+function createNewProject() {
+    const state = {
+        scenes: {},
+        activeSceneId: null,
+        activeTourId: null,  // No wiki page yet
+        tourMeta: {
+            author: DEFAULT_CREATOR,
+            title: 'Untitled Tour'
+        }
+    };
+    
+    // Add first scene
+    const sceneId = addScene();
+    
+    // Update UI
+    renderSceneList();
+    showStatus('New project created. Add scenes and hotspots.');
+}
+```
+
+**New Project Template**:
+
+```json
+{
+  "default": {
+    "firstScene": "scene-1"
+  },
+  "scenes": {
+    "scene-1": {
+      "title": "Untitled Scene",
+      "panorama": "",
+      "hotSpots": []
+    }
+  },
+  "author": "Wikimedia Commons",
+  "title": "Untitled Tour"
+}
+```
+
+**Files to Modify**:
+- `prototype/studio.html` — Add "New Project" button to header and empty state
+- `prototype/studio.js` — Add `createNewProject()` function
+
+---
+
+### FR-13: Configurable Default Names
+
+**Priority**: Medium
+**Status**: Not implemented
+
+**Description**: Replace hardcoded default names with configurable constants that can be customized per installation.
+
+**Current Defaults** (not user-friendly):
+- Scene name: `scene_<timestamp>` (e.g., `scene_1750310400`)
+- Creator: `Wikimedia Commons`
+
+**Proposed Defaults**:
+- Scene name: `Untitled Scene` or `Scene 1`, `Scene 2`, etc.
+- Creator: `''` (empty) or configurable per installation
+
+**Configuration Location**:
+
+```javascript
+// In studio.js or config.js
+const CONFIG = {
+    // Default names for new projects
+    DEFAULT_SCENE_NAME: 'Untitled Scene',
+    DEFAULT_SCENE_PREFIX: 'Scene',  // For numbering: Scene 1, Scene 2, etc.
+    DEFAULT_TOUR_TITLE: 'Untitled Tour',
+    DEFAULT_AUTHOR: '',  // Empty = prompt user to enter
+    
+    // Scene ID generation
+    SCENE_ID_PREFIX: 'scene',  // scene-1, scene-2, etc.
+    
+    // Export defaults
+    EXPORT_FORMAT: 'json',
+    EXPORT_INDENTATION: 2
+};
+```
+
+**Scene Naming Logic**:
+
+```javascript
+let sceneCounter = 0;
+
+function generateSceneName() {
+    sceneCounter++;
+    return `${CONFIG.DEFAULT_SCENE_PREFIX} ${sceneCounter}`;
+}
+
+function generateSceneId() {
+    sceneCounter++;
+    return `${CONFIG.SCENE_ID_PREFIX}-${sceneCounter}`;
+}
+```
+
+**Examples**:
+
+| Current | Proposed |
+|---------|----------|
+| `scene_1750310400` | `scene-1` |
+| `scene_1750310401` | `scene-2` |
+| `Untitled` | `Untitled Scene` |
+| `Wikimedia Commons` | `''` (empty) or configurable |
+
+**User Story**:
+
+1. User clicks "New Project"
+2. First scene is named "Scene 1" (not `scene_1750310400`)
+3. Second scene is named "Scene 2"
+4. User is prompted to enter their name (not defaulted to "Wikimedia Commons")
+5. Tour title defaults to "Untitled Tour"
+
+**Installation Configuration**:
+
+For Toolforge deployment, these can be set in environment variables:
+
+```bash
+# In webservice environment
+DEFAULT_AUTHOR="Wikimedia Commons"
+DEFAULT_SCENE_PREFIX="Scene"
+```
+
+Or in a config file:
+
+```json
+// /data/project/wikipano/config.json
+{
+    "defaultAuthor": "Wikimedia Commons",
+    "defaultScenePrefix": "Scene",
+    "defaultTourTitle": "Untitled Tour"
+}
+```
+
+**Files to Modify**:
+- `prototype/studio.js` — Add CONFIG object, update `addScene()` to use `generateSceneName()`
+- `prototype/studio.js` — Update `createNewProject()` to use new defaults
+- `prototype/tour_server.mjs` — Serve config.json if present
+
+---
+
+### FR-14: Tour Metadata Editor
+
+**Priority**: Medium
+**Status**: Not implemented
+
+**Description**: Add a properties panel for editing tour-level metadata (title, author, description) that persists across sessions.
+
+**Current State**:
+- Tour title is hardcoded as `Untitled Tour`
+- Author is hardcoded as `Wikimedia Commons`
+- No UI to edit these fields
+
+**Proposed UI**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Tour Properties                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Title:    [My Awesome Tour_______________]                  │
+│                                                             │
+│ Author:   [Your Name____________________]                  │
+│                                                             │
+│ Wiki:     [User:YourName/My_Tour________] (optional)       │
+│                                                             │
+│ Description:                                                │
+│ [_______________________________________________]          │
+│ [_______________________________________________]          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Implementation**:
+
+```javascript
+// In tour metadata
+const tourMeta = {
+    title: 'Untitled Tour',
+    author: '',
+    description: '',
+    wikiPage: null,  // Set when saved to wiki
+    wikiSite: null   // 'commons', 'en', etc.
+};
+
+// Save to localStorage for persistence
+function saveTourMeta() {
+    localStorage.setItem('studio-tour-meta', JSON.stringify(tourMeta));
+}
+
+// Load from localStorage
+function loadTourMeta() {
+    const saved = localStorage.getItem('studio-tour-meta');
+    if (saved) {
+        Object.assign(tourMeta, JSON.parse(saved));
+    }
+}
+```
+
+**Files to Modify**:
+- `prototype/studio.html` — Add Tour Properties panel
+- `prototype/studio.js` — Add `tourMeta` state, `saveTourMeta()`, `loadTourMeta()`
+- `prototype/studio.js` — Update `createNewProject()` to include metadata
+- `prototype/studio.js` — Update `exportTour()` to include metadata in JSON
+
+---
+
+### Phase 2.13 Additions (Pending)
+- Feature 13: FR-12 New Project Button
+- Feature 14: FR-13 Configurable Default Names
+- Feature 15: FR-14 Tour Metadata Editor
+
+---
+
+## Phase 2.14: UI Polish & Bug Fixes
+
+**Date**: 2026-06-19
+**Purpose**: Fix visual overlap issues and polish the viewer/studio UI
+
+### FR-15: Immersive Toggle Button Overlapping Header
+
+**Priority**: Medium
+**Status**: Not implemented
+**Type**: Bug fix
+
+**Description**: The immersive mode toggle button (`#toggle-immersive-btn`) is a circular button with `☰` positioned fixed at `top: 20px; right: 20px` with `z-index: 1000`. In the non-immersive (default/expanded) view mode, this button overlays the header bar, sitting on top of header text and controls.
+
+**Visual**:
+```
+┌───────────────────────────────────────────────┐
+│ 🔭 Wikimedia Photosphere Tour  ┌───┐         │
+│ Phase 1 Prototype              │ ☰ │ ← overlaps│
+│                                 └───┘         │
+│ ┌────────────────────────────────────────┐    │
+│ │ [Wiki page title____________] [Load]  │    │
+│ └────────────────────────────────────────┘    │
+└───────────────────────────────────────────────┘
+```
+
+**Root cause**: The `#toggle-immersive-btn` is always visible (position: fixed, z-index: 1000), but in the non-immersive view, the header is shown and the button sits on top of it at position `top: 20px; right: 20px` — right where the header is.
+
+**Possible fixes**:
+1. **Move button below header in non-immersive mode**: Adjust `top` position to account for header height (~60px) when not in immersive mode
+2. **Hide button in non-immersive mode**: Only show the toggle button when actually in immersive mode
+3. **Reposition to bottom corner**: Move to bottom-left or bottom-right instead of top-right
+4. **Reduce z-index**: Lower z-index so it doesn't float above the header
+
+**Suggestion**: Option 1 — adjust `top` from `20px` to `70px` when not in immersive mode (`.tour-viewer:not(.immersive) #toggle-immersive-btn { top: 70px; }`). This keeps the button accessible without overlapping the header row.
+
+### FR-16: Sticky Immersive Mode Preference vs Canonical URL Consistency
+
+**Priority**: Medium
+**Status**: ✅ **Implemented (2026-06-19)**
+**Type**: UX behavior decision
+
+**Description**: The immersive mode preference is persisted to `localStorage` (`localStorage.getItem('immersive')` / `localStorage.setItem('immersive', ...)`). This means:
+
+1. First visit to a URL → starts in immersive (full-screen) mode ✅
+2. User toggles to detailed mode (sidebar + header visible)
+3. Same URL is reloaded → **starts in detailed mode**, not immersive ❌
+
+The preference "sticks" to whatever mode the user was last in, making the canonical tour URL non-deterministic.
+
+**The question**: Should a canonical tour URL (`wikipano.toolforge.org/?page=User:Fuzheado/Panellum_Tour`) always start in immersive mode, regardless of the user's last preference?
+
+**Arguments for always-starting-immersive**:
+- Canonical URLs are predictable — every visitor sees the same initial experience
+- New visitors discover the tour in the intended full-screen panoramic view
+- Immersive is the "hero" experience; detailed mode is a power-user feature
+- Tour creators can rely on the URL always presenting the tour in the same way
+- Avoids confusion when sharing links ("it worked when I opened it, but when my friend reloaded it looked different")
+
+**Arguments for localStorage preference (current behavior)**:
+- Respects user's choice — if they prefer detailed mode, they don't have to toggle every time
+- Power users who are navigating multiple tours don't need to re-opt out each time
+- Standard web convention (e.g., light/dark mode, sidebar state)
+
+**Possible resolution**:
+1. **Remove localStorage persistence entirely** — always start immersive; user preference is session-only. This makes the canonical URL fully deterministic.
+2. **Add a URL parameter to override** — e.g., `?mode=detailed` or `?mode=immersive` to explicitly choose. If omitted, default to immersive. This gives the best of both worlds: canonical URL is always immersive, but users can opt into detailed mode via the toggle during a session.
+3. **Tour-level configuration** — Let the tour definition (JSON/TOML) specify `default.viewMode = "immersive" | "detailed"`, so the tour creator decides the default experience for their specific tour.
+
+**Recommendation**: Option 2 or a combined 2+3 — always start immersive by default (remove localStorage persistence), but accept `?mode=detailed` URL parameter for explicit override.
+
+### Implementation (2026-06-19)
+
+Implemented combined option 2+3:
+
+**Priority chain**:
+1. URL parameter `?mode=immersive|detailed` — highest priority (explicit user override)
+2. Tour JSON `default.viewMode` — tour creator's intended default
+3. Default `'immersive'` if neither specified
+
+**Changes**:
+- `tour_viewer.html`: Removed localStorage persistence, added `applyTourViewMode()` function
+- `studio.js`: Added `state.viewMode`, exported in `default.viewMode`
+- `studio.html`: Added "Default View Mode" select in Tour Settings panel
+- `playwright.config.js`: Added `webServer` config for auto-starting server
+- `tests/immersive-mode.spec.js`: 18 regression tests (all passing)
+
+**URL examples**:
+```
+https://wikipano.toolforge.org/?page=User:Example/Tour              # Tour's default viewMode
+https://wikipano.toolforge.org/?page=User:Example/Tour&mode=detailed # Override to detailed
+https://wikipano.toolforge.org/?page=User:Example/Tour&mode=immersive # Override to immersive
+```
+
+**Tour JSON example**:
+```json
+{
+  "default": {
+    "firstScene": "museum",
+    "viewMode": "detailed"
+  },
+  "scenes": { ... }
+}
+```
+
+---
+
+## Phase 2.15: Welcome & Onboarding
+
+**Date**: 2026-06-19
+**Purpose**: First-impression experience for new visitors
+
+### FR-17: Welcome Greeting Box
+
+**Priority**: Medium
+**Status**: Not implemented
+**Type**: New feature
+
+**Description**: A dismissible greeting box that appears when a tour loads, showing a welcome message or instructions. Useful for tour creators to provide context, instructions, or a brief introduction before the visitor explores.
+
+### Use Cases
+
+- **Tour introduction**: "Welcome to the Banned Books Museum tour. Click the red arrows to navigate between rooms."
+- **Instructions**: "Drag to look around. Click hotspots for more information."
+- **Credits**: "This tour features 360° photos by Fuzheado, taken on location in 2024."
+- **Accessibility note**: "Use the 🧭 button on mobile to enable gyroscope control."
+
+### UI Design
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    360° PANORAMA                         │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  👋 Welcome to the Banned Books Museum          │   │
+│  │                                                 │   │
+│  │  Click the red arrows to navigate between       │   │
+│  │  rooms. Click blue info icons for details.      │   │
+│  │                                                 │   │
+│  │                              [× Dismiss]        │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                         │
+│                                         🧭  ≡           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Behavior
+
+- **Position**: Bottom-left corner (above footer, below toggle button)
+- **Dismissal**: Click "× Dismiss" button or press `X` key
+- **Persistence**: Dismissal remembered in `sessionStorage` (per-session only; reappears on new visit)
+- **Animation**: Fade in on load, fade out on dismiss
+- **Only shown when**: Tour JSON includes a `welcome` object (see below)
+- **No box if**: No `welcome` in tour JSON — nothing shown
+
+### Tour JSON Schema
+
+```json
+{
+  "default": {
+    "firstScene": "museum",
+    "welcome": {
+      "title": "Welcome to the Banned Books Museum",
+      "message": "Click the red arrows to navigate between rooms. Click blue info icons for details.",
+      "dismissText": "× Dismiss"
+    }
+  },
+  "scenes": { ... }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `title` | No | Bold heading text (e.g., "Welcome!") |
+| `message` | Yes | Body text shown in the box |
+| `dismissText` | No | Button label (default: "× Dismiss") |
+
+### Studio UI
+
+Add a "Welcome Message" section in the Tour Settings panel:
+
+- **Title** (text input, optional)
+- **Message** (textarea, required to enable)
+- **Preview**: Shows how the greeting box will look
+- Clear button to remove welcome message
+
+### Implementation Effort
+
+**MVP**: ~2-3 hours
+- HTML/CSS for greeting box
+- JavaScript for show/dismiss/sessionStorage
+- Tour JSON parsing
+- Studio UI for editing
+
+**Full**: ~4-5 hours
+- Markdown support in message text
+- Typing animation effect
+- Auto-dismiss after N seconds option
+- Image/media support in greeting box
+
+### Files to Modify
+
+- `prototype/tour_viewer.html` — Add greeting box HTML/CSS/JS
+- `prototype/studio.html` — Add welcome message editor in Tour Settings
+- `prototype/studio.js` — Add `state.welcome`, export/import logic
+- `HANDOVER.md` — Document feature
+- `CAVEATS.md` — Document any gotchas
+
+---
+
+### FR-18: Video Popup Title/Caption
+
+**Priority**: Medium
+**Status**: Not implemented
+**Type**: New feature
+
+**Description**: Currently, video hotspots open a raw video overlay with no context — no title, no caption, no description. Users have no idea what they're about to watch. Add a title/caption bar above the video player to provide context.
+
+### Current Behavior
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ ×
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│                    🎬 VIDEO                            │
+│                    (raw player, no context)             │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Desired Behavior
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ ×
+├─────────────────────────────────────────────────────────┤
+│  🎬 Original Filming Location (1920)                    │
+│  Archival footage of the museum's opening day           │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│                    ▶️ VIDEO PLAYER                      │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Tour JSON Schema
+
+```json
+{
+  "scenes": {
+    "museum": {
+      "hotSpots": [
+        {
+          "type": "info",
+          "hotspotSubtype": "video",
+          "videoUrl": "File:Archival_Footage.webm",
+          "videoTitle": "Original Filming Location (1920)",
+          "videoCaption": "Archival footage of the museum's opening day",
+          "text": "Watch archival footage"
+        }
+      ]
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `videoTitle` | No | Bold heading shown above video |
+| `videoCaption` | No | Smaller description text below title |
+
+---
+
+### FR-19: Video Start/Stop Timecode
+
+**Priority**: Medium
+**Status**: Not implemented
+**Type**: New feature
+
+**Description**: Allow tour creators to specify start and end times for video playback, so only a relevant segment is shown. Useful for long videos where only a specific portion is relevant to the scene.
+
+### Use Cases
+
+- **Archival footage**: Show only the 30-second segment featuring the museum
+- **Interview clips**: Play just the relevant quote (1:23 to 1:45)
+- **YouTube embeds**: Skip intros, play only the useful part
+- **Demo videos**: Show a specific feature demonstration
+
+### Implementation Details
+
+**HTML5 Video** (Commons/direct URLs):
+```javascript
+video.currentTime = startTime;  // Seek to start
+video.addEventListener('timeupdate', function() {
+    if (video.currentTime >= endTime) {
+        video.pause();
+    }
+});
+```
+
+**YouTube Embeds** (via URL parameters):
+```
+https://www.youtube.com/embed/VIDEO_ID?autoplay=1&start=30&end=60
+```
+
+### Tour JSON Schema
+
+```json
+{
+  "scenes": {
+    "museum": {
+      "hotSpots": [
+        {
+          "type": "info",
+          "hotspotSubtype": "video",
+          "videoUrl": "File:Long_Interview.webm",
+          "videoTitle": "Curator's Commentary",
+          "videoCaption": "The curator discusses the rare book collection",
+          "videoStartTime": 85,
+          "videoEndTime": 145,
+          "text": "Listen to curator"
+        }
+      ]
+    }
+  }
+}
+```
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `videoStartTime` | No | number | Start time in seconds (default: 0) |
+| `videoEndTime` | No | number | End time in seconds (default: video length) |
+
+**Timecode format alternatives** (future):
+- Seconds: `85`
+- MM:SS: `1:25`
+- HH:MM:SS: `01:01:25`
+
+### Studio UI
+
+Add to the video hotspot modal:
+
+```
+┌─ Add Hotspot ─────────────────────────────────────┐
+│ ...
+│ Video URL: [File:Long_Interview.webm           ] │
+│ Title:    [Curator's Commentary                 ] │
+│ Caption:  [The curator discusses the rare...     ] │
+│                                                     │
+│ ⏱️ Time Range (optional)                          │
+│ Start: [0:00   ]  End: [2:25    ]  [▶ Preview]   │
+│                                                     │
+│ [Cancel]                          [Add Hotspot]    │
+└─────────────────────────────────────────────────────┘
+```
+
+- Time inputs accept `MM:SS` or seconds
+- "Preview" button opens video at the specified timecodes
+- Clear button to remove time constraints
+
+### Implementation Effort
+
+**FR-18 (Title/Caption)**: ~1-2 hours
+- Add title/caption HTML to video overlay
+- Parse `videoTitle`/`videoCaption` from hotspot data
+- Studio modal inputs
+
+**FR-19 (Timecodes)**: ~2-3 hours
+- HTML5 video: `currentTime` + `timeupdate` listener
+- YouTube: URL parameters `?start=&end=`
+- Studio timecode inputs with validation
+- Preview button
+
+**Combined (FR-18 + FR-19)**: ~3-4 hours
+
+### Files to Modify
+
+- `prototype/tour_viewer.html` — Video overlay HTML/CSS/JS, timecode logic
+- `prototype/studio.html` — Video hotspot modal (title, caption, time inputs)
+- `prototype/studio.js` — Parse/export `videoTitle`, `videoCaption`, `videoStartTime`, `videoEndTime`
+- `HANDOVER.md` — Document features
+- `CAVEATS.md` — YouTube timecode limitations, seeking behavior

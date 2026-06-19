@@ -67,6 +67,13 @@ A full authoring pipeline for collaborative photosphere tours:
 - `{{PanoTour}}` template on Commons for wiki page links
 - Gyroscope enabled over HTTPS for mobile devices
 
+### Phase 2.7: Immersive Mode & Cache Management ✅
+- **Immersive mode**: Panorama fills viewport by default, toggle sidebar (☰), keyboard shortcuts (Esc/F/G)
+- **Cache management**: 500MB LRU with pre-fetching linked scenes
+- **Browser caching**: `Cache-Control: immutable` for images, cache-busting `?v=` parameter
+- **Mobile UX**: Auto-gyro on first tap, prominent fullscreen button
+- **Performance**: Images served with proper caching headers for faster loads
+
 ## Quick Start
 
 ### Live (Toolforge)
@@ -106,6 +113,8 @@ photospheres/
 │   ├── studio.html         # Visual editor UI
 │   ├── studio.js           # Editor logic
 │   └── tour_config.php     # Standalone PHP equivalent (reference only, not deployed)
+├── specs/                    # Feature specs
+│   └── FR-17-info-overlays.md
 ├── adr/                    # Architecture Decision Records
 ├── RESEARCH_REPORT.md      # Library landscape analysis
 ├── PRD.md                  # Product requirements
@@ -118,7 +127,8 @@ photospheres/
 ├── tests/                  # Playwright test suite
 │   ├── tour-viewer.spec.js       # Tour viewer URL params, scene nav, status, state
 │   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
-│   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
+│   ├── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
+│   └── immersive-mode.spec.js   # FR-16 Immersive mode stickiness (18 tests)
 ├── playwright.config.js    # Playwright configuration
 ├── scripts/                # Utility scripts
 │   ├── dump-state.js       # Playwright state introspection
@@ -175,8 +185,9 @@ panorama = "File:My_Photo.jpg"
 |---|---|---|
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
 | 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
-| 2.5 — Deploy | ✅ **Done** | Deployed at **wikipano.toolforge.org**, `{{PanoTour}}` template on Commons |
-| 2.6 — Scope | 🔶 In Progress | Multi-wiki support (FR-01 done) + Wikimedia content restrictions — see `FEATURE_REQUESTS.md` |
+| 2.5 — Deploy | ✅ Done | Deployed at **wikipano.toolforge.org**, `{{PanoTour}}` template on Commons |
+| 2.6 — Scope | 🔶 In Progress | Multi-wiki support (FR-01 done) + Wikimedia content restrictions |
+| 2.7 — Immersive | ✅ **Done** | Immersive mode, cache management, mobile UX, performance optimization |
 | 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery, OAuth save |
 
 ## License

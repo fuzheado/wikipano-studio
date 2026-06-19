@@ -68,10 +68,13 @@ photospheres/
 │   ├── validate-pannellum.mjs  # JSON Schema validator + auto-fix
 │   ├── dump-state.js           # Playwright state introspection
 │   └── create-panotour-templates.py  # Pywikibot script for template creation
+├── specs/
+│   └── FR-17-info-overlays.md    # Info overlays & welcome panels spec
 ├── tests/
 │   ├── tour-viewer.spec.js       # Tour viewer URL params, scene nav, status, state
 │   ├── studio-behaviors.spec.js  # Studio interaction behavior tests
-│   └── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
+│   ├── mobile-gyro.spec.js       # Mobile gyroscope toggle tests
+│   └── immersive-mode.spec.js   # FR-16 Immersive mode stickiness (18 tests)
 └── prototype/
     ├── tour_server.mjs          # Node.js server (zero deps): API + static files + image cache
     ├── tour_viewer.html         # Pannellum viewer with scene sidebar + Wikipedia cards
@@ -180,6 +183,40 @@ photospheres/
 - [ ] FR-03: Panorama source validation (Commons only)
 - [ ] FR-04: Info hotspot external link warning (visual indicator)
 - [ ] FR-05: Export validation (compliance rules)
+
+### Phase 2.7: Immersive Mode & Cache Management (2026-06-19)
+**Goal**: Immersive default view, performance optimization, mobile UX
+
+- [x] **FR-09: Immersive full-screen default view** — panorama fills viewport, toggle sidebar, keyboard shortcuts (Esc/F/G)
+- [x] **FR-10: Cache management** — 500MB LRU with `.access` tracking, pre-fetching linked scenes
+- [x] **FR-11: Pre-fetch linked scene images** — background download on tour load
+- [x] **Browser caching headers** — `Cache-Control: public, max-age=604800, immutable` for images
+- [x] **Cache-busting** — `?v=<mtime>` query parameter on image URLs
+- [x] **Mobile UX** — auto-gyro on first tap, prominent fullscreen button
+- [x] **Streaming fix** — removed `createReadStream().pipe(res)` that broke Pannellum (CAVEATS §16)
+- [x] **Chrome cache fix** — documented full restart requirement (CAVEATS §17)
+
+### Phase 2.8: Immersive Stickiness + Tests (2026-06-19)
+**Goal**: Make immersive mode deterministic, add regression tests
+
+- [x] **FR-16: Immersive mode stickiness** — URL ?mode= param + tour JSON viewMode, no localStorage
+- [x] **URL shareability** — `history.pushState` updates URL when a tour is loaded via input box
+- [x] **FR-16 tests** — 18 Playwright tests in `tests/immersive-mode.spec.js`
+- [x] **Playwright webServer config** — auto-starts server, no manual setup needed
+
+| Test Suite | Tests | File |
+|------------|-------|------|
+| Tour viewer | 15 | `tests/tour-viewer.spec.js` |
+| Studio behaviors | 2 | `tests/studio-behaviors.spec.js` |
+| Mobile gyro | 2 | `tests/mobile-gyro.spec.js` |
+| Immersive mode | 18 | `tests/immersive-mode.spec.js` |
+
+### Phase 2.9: Specs (2026-06-19)
+**Goal**: Document upcoming features before implementation
+
+- [x] **FR-17 spec**: Info Overlays & Welcome Panels (`specs/FR-17-info-overlays.md`)
+- [x] **FR-18 spec**: Video Popup Title/Caption (in FEATURE_REQUESTS.md)
+- [x] **FR-19 spec**: Video Start/Stop Timecode (in FEATURE_REQUESTS.md)
 
 ### Phase 3: Rich Features & Migration
 **Goal**: Production-grade experience matching commercial tools

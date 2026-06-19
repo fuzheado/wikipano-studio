@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wikimedia Photosphere Tour Viewer — Phase 1 Prototype</title>
+    <title>Wikimedia Photosphere Tour Viewer - Phase 1 Prototype</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.css"/>
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.js"></script>
     <style>
@@ -242,7 +242,7 @@
             display: none !important;
         }
 
-        /* Wikipedia cards hidden by default — shown on click */
+        /* Wikipedia cards hidden by default - shown on click */
         .wp-card-tooltip { display: none; }
         .wp-card-tooltip.visible { display: block; }
 
@@ -343,7 +343,7 @@
             50% { opacity: 0.7; }
         }
 
-        /* Info hotspot: blue circle with ⓘ (matching studio) */
+        /* Info hotspot: blue circle with i (matching studio) */
         .info-hotspot {
             height: 44px !important;
             width: 44px !important;
@@ -354,7 +354,7 @@
             animation: info-pulse 2s ease-in-out infinite;
         }
         .info-hotspot::after {
-            content: 'ⓘ';
+            content: 'i';
             position: absolute;
             inset: 0;
             display: flex;
@@ -374,7 +374,7 @@
             50% { opacity: 0.7; }
         }
 
-        /* Wikipedia card hotspot: same as info-hotspot (blue ⓘ) */
+        /* Wikipedia card hotspot: same as info-hotspot (blue i) */
         .wp-card-hotspot {
             height: 44px !important;
             width: 44px !important;
@@ -385,7 +385,7 @@
             animation: info-pulse 2s ease-in-out infinite;
         }
         .wp-card-hotspot::after {
-            content: 'ⓘ';
+            content: 'i';
             position: absolute;
             inset: 0;
             display: flex;
@@ -484,7 +484,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         /* ── Gyroscope Button ───────────────────────────── */
         #gyro-btn {
             background: var(--surface2);
@@ -509,6 +509,71 @@
             font-size: 1rem;
         }
 
+        /* ── Immersive Mode ───────────────────────────── */
+        .tour-viewer.immersive header {
+            display: none;
+        }
+        .tour-viewer.immersive aside {
+            display: none;
+        }
+        .tour-viewer.immersive footer {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tour-viewer.immersive footer:hover {
+            opacity: 1;
+        }
+        .tour-viewer.immersive #toggle-immersive-btn {
+            background: rgba(0, 0, 0, 0.8);
+        }
+        .tour-viewer:not(.immersive) #toggle-immersive-btn {
+            top: 70px;
+        }
+
+        /* ── Toggle Immersive Button ──────────────────── */
+        #toggle-immersive-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.2s;
+        }
+        #toggle-immersive-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: scale(1.1);
+        }
+
+        /* ── Fullscreen Button ────────────────────────── */
+        #fullscreen-btn {
+            background: var(--surface2);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #fullscreen-btn:hover {
+            border-color: var(--highlight);
+        }
+        #fullscreen-btn .icon {
+            font-size: 1rem;
+        }
+
         /* ── Responsive ─────────────────────────────── */
         @media (max-width: 768px) {
             main { flex-direction: column; }
@@ -518,7 +583,10 @@
         }
     </style>
 </head>
-<body>
+<body class="tour-viewer">
+
+<!-- Toggle Immersive Mode Button -->
+<button id="toggle-immersive-btn" title="Toggle immersive mode (Esc)">☰</button>
 
 <header>
     <div>
@@ -556,7 +624,12 @@
             <span class="icon">🧭</span>
             <span class="label">Gyro</span>
         </button>
+        <button id="fullscreen-btn" title="Toggle fullscreen (F)">
+            <span class="icon">⛶</span>
+            <span class="label">Fullscreen</span>
+        </button>
         <button id="toggleAllInfoBtn" style="background:var(--surface2);border:1px solid rgba(255,255,255,0.2);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.75rem;">👁 Show all popups</button>
+        <a id="studio-btn" href="#" title="Open in Studio" style="background:var(--highlight);border:none;color:white;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.75rem;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">✏️ Studio</a>
     </div>
     <span>Tour JSON stored on <a href="https://commons.wikimedia.org/" target="_blank" style="color:var(--highlight);">Wikimedia Commons</a></span>
 </footer>
@@ -582,6 +655,7 @@ const CONFIG_BACKEND = '/api/tour?page=';
 let viewer = null;
 let tourData = null;
 let currentScene = null;
+let _urlModeParam = null; // Track if URL ?mode= was provided (set in setupImmersiveMode)
 
 // ── Scene List ──────────────────────────────────────────────────────────────
 
@@ -616,7 +690,7 @@ function renderTourInfo() {
     info.style.display = 'block';
     const meta = tourData._meta || {};
     const author = (tourData.default && tourData.default.author) || 'Unknown';
-    
+
     // Build wiki link based on source wiki
     const wikiHost = {
         commons: 'commons.wikimedia.org',
@@ -632,7 +706,7 @@ function renderTourInfo() {
         wikidata: 'www.wikidata.org',
     }[meta.sourceWiki] || 'commons.wikimedia.org';
     const wikiName = meta.sourceWikiName || 'Commons';
-    
+
     info.innerHTML = `
         <p><span class="label">Author:</span> ${escapeHTML(author)}</p>
         <p><span class="label">Scenes:</span> ${meta.totalScenes || Object.keys(tourData.scenes || {}).length}</p>
@@ -677,6 +751,9 @@ function loadTour(configUrl, targetScene) {
             if (config.error) {
                 throw new Error(config.error);
             }
+
+            // Apply tour's viewMode if no URL ?mode= param was provided
+            applyTourViewMode(config);
 
             // Add Wikipedia card tooltips to hotspots
             if (config.scenes) enrichHotspots(config.scenes);
@@ -741,6 +818,38 @@ function switchToScene(sceneId) {
     }
 }
 
+/**
+ * Apply tour's default.viewMode if no URL ?mode= parameter was provided.
+ * Priority: URL param > tour JSON > default (immersive)
+ */
+function applyTourViewMode(config) {
+    // Skip if URL ?mode= was explicitly provided
+    if (_urlModeParam) return;
+
+    const viewMode = config?.default?.viewMode;
+    if (!viewMode) return; // No viewMode in JSON, keep default (immersive)
+
+    const body = document.body;
+    if (viewMode === 'detailed') {
+        body.classList.remove('immersive');
+    } else if (viewMode === 'immersive') {
+        body.classList.add('immersive');
+    }
+
+    // Update toggle button icon
+    const toggleBtn = document.getElementById('toggle-immersive-btn');
+    if (toggleBtn) {
+        const isImmersive = body.classList.contains('immersive');
+        toggleBtn.textContent = isImmersive ? '☰' : '×';
+        toggleBtn.title = isImmersive ? 'Show sidebar (Esc)' : 'Hide sidebar (Esc)';
+    }
+
+    // Resize viewer to fit new layout
+    if (viewer) {
+        setTimeout(function() { viewer.updateSize(); }, 300);
+    }
+}
+
 // ── Gyroscope Support ───────────────────────────────────────────────────
 
 /**
@@ -751,32 +860,32 @@ function switchToScene(sceneId) {
 function setupGyroscopeButton() {
     const gyroBtn = document.getElementById('gyro-btn');
     if (!gyroBtn || !viewer) return;
-    
+
     // Check if device orientation is supported
     if (!viewer.isOrientationSupported()) {
         gyroBtn.style.display = 'none';
         return;
     }
-    
+
     // Show the button on mobile devices
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!isMobile) {
         gyroBtn.style.display = 'none';
         return;
     }
-    
+
     gyroBtn.style.display = 'flex';
-    
+
     // Check if orientation is already active (from config orientationOnByDefault)
     if (viewer.isOrientationActive()) {
         gyroBtn.classList.add('active');
         gyroBtn.querySelector('.label').textContent = 'Gyro ON';
     }
-    
+
     // Toggle gyroscope on button click
     gyroBtn.onclick = function() {
         if (!viewer) return;
-        
+
         if (viewer.isOrientationActive()) {
             viewer.stopOrientation();
             gyroBtn.classList.remove('active');
@@ -784,7 +893,7 @@ function setupGyroscopeButton() {
             setStatus('Gyroscope disabled', 'ok');
         } else {
             // iOS 13+ requires permission request
-            if (typeof DeviceOrientationEvent !== 'undefined' && 
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(function(permission) {
@@ -812,6 +921,163 @@ function setupGyroscopeButton() {
     };
 }
 
+// ── Immersive Mode & Fullscreen ───────────────────────────────────────────
+
+/**
+ * Setup immersive mode toggle and fullscreen button.
+ * Immersive mode hides header/sidebar for full-screen panorama viewing.
+ *
+ * Priority chain for determining initial mode:
+ * 1. URL parameter ?mode=immersive|detailed (highest priority)
+ * 2. Tour JSON default.viewMode (tour creator's intent)
+ * 3. Default to 'immersive' if neither specified
+ */
+function setupImmersiveMode() {
+    const body = document.body;
+    const toggleBtn = document.getElementById('toggle-immersive-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+    // Check URL parameter first (highest priority)
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get('mode');
+    _urlModeParam = modeParam; // Store for later use by applyTourViewMode
+    if (modeParam === 'detailed') {
+        body.classList.remove('immersive');
+    } else if (modeParam === 'immersive') {
+        body.classList.add('immersive');
+    } else {
+        // No URL param - default to immersive (tour JSON checked later)
+        body.classList.add('immersive');
+    }
+
+    // Update button icon based on state
+    function updateToggleIcon() {
+        if (!toggleBtn) return;
+        const isImmersive = body.classList.contains('immersive');
+        toggleBtn.textContent = isImmersive ? '☰' : '×';
+        toggleBtn.title = isImmersive ? 'Show sidebar (Esc)' : 'Hide sidebar (Esc)';
+    }
+
+    // Toggle immersive mode (session-only, no localStorage persistence)
+    function toggleImmersive() {
+        body.classList.toggle('immersive');
+        updateToggleIcon();
+
+        // Resize viewer to fit new layout
+        if (viewer) {
+            setTimeout(function() { viewer.updateSize(); }, 300);
+        }
+    }
+
+    // Toggle fullscreen
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            // Enter fullscreen
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    // Update fullscreen button icon
+    function updateFullscreenIcon() {
+        if (!fullscreenBtn) return;
+        const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        fullscreenBtn.querySelector('.icon').textContent = isFullscreen ? '⛶' : '⛶';
+        fullscreenBtn.querySelector('.label').textContent = isFullscreen ? 'Exit' : 'Fullscreen';
+    }
+
+    // Button event listeners
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleImmersive);
+    }
+
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+    }
+
+    // Fullscreen change events
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Don't trigger if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch(e.key) {
+            case 'Escape':
+                toggleImmersive();
+                e.preventDefault();
+                break;
+            case 'f':
+            case 'F':
+                toggleFullscreen();
+                e.preventDefault();
+                break;
+            case 'g':
+            case 'G':
+                // Trigger gyroscope button if visible
+                const gyroBtn = document.getElementById('gyro-btn');
+                if (gyroBtn && gyroBtn.style.display !== 'none') {
+                    gyroBtn.click();
+                }
+                e.preventDefault();
+                break;
+        }
+    });
+
+    // On mobile, auto-enable gyro on first tap and make fullscreen prominent
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isMobile) {
+        // Make fullscreen button more prominent
+        if (fullscreenBtn) {
+            fullscreenBtn.style.cssText = 'background:var(--highlight);border-color:var(--highlight);padding:10px 20px;font-size:0.9rem;font-weight:600;';
+        }
+        
+        // Show a brief prompt
+        const prompt = document.createElement('div');
+        prompt.id = 'fullscreen-prompt';
+        prompt.innerHTML = '👆 Tap to enable gyroscope & fullscreen';
+        prompt.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:12px 24px;border-radius:25px;font-size:14px;z-index:1001;animation:fadeInOut 5s ease-in-out;pointer-events:none;white-space:nowrap;';
+        document.body.appendChild(prompt);
+        
+        // Add CSS animation
+        const style = document.createElement('style');
+        style.textContent = '@keyframes fadeInOut { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }';
+        document.head.appendChild(style);
+        
+        // Remove prompt after 5 seconds
+        setTimeout(() => prompt.remove(), 5000);
+        
+        // Auto-enable gyro on first tap (requires user gesture on iOS)
+        let hasTapped = false;
+        document.addEventListener('click', function enableGyro() {
+            if (hasTapped) return;
+            hasTapped = true;
+            
+            // Click gyro button if it exists and is visible
+            const gyroBtn = document.getElementById('gyro-btn');
+            if (gyroBtn && gyroBtn.style.display !== 'none') {
+                gyroBtn.click();
+            }
+        }, { once: true });
+    }
+
+    // Initial icon update
+    updateToggleIcon();
+    updateFullscreenIcon();
+}
+
 // ── Audio Hotspot Support ───────────────────────────────────────────────────
 
 const audioPlayer = document.createElement('audio');
@@ -823,7 +1089,7 @@ document.body.appendChild(audioPlayer);
  * Intercept clicks on audio hotspots to play sound instead of navigating.
  * Called after viewer init and on every scene change (Pannellum re-creates hotspot DOM).
  */
-// ── Audio hotspot onclick wrapping — one-shot per element ──────────────────
+// ── Audio hotspot onclick wrapping - one-shot per element ──────────────────
 
 /** Resolve a Commons File: reference to a direct playable URL */
 function resolveAudioFileUrl(fileRef, callback) {
@@ -858,7 +1124,7 @@ function wrapAudioHotspot(el) {
     var rawUrl = audioHots[domIdx] || null;
 
     // Pre-resolve Commons File: references to direct audio URLs.
-    // The browser <audio> element can't play File: references — it needs a
+    // The browser <audio> element can't play File: references - it needs a
     // direct URL like https://upload.wikimedia.org/.../file.ogg.
     // Resolution starts immediately when the hotspot appears; by the time
     // the user clicks, the resolved URL should be cached on the element.
@@ -1100,7 +1366,7 @@ function enrichHotspots(scenes) {
         if (!scene.hotSpots) continue;
         for (var i = 0; i < scene.hotSpots.length; i++) {
             var hs = scene.hotSpots[i];
-            // Tag ALL hotspot types via createTooltipFunc — Pannellum 2.5.7 applies
+            // Tag ALL hotspot types via createTooltipFunc - Pannellum 2.5.7 applies
             // cssClass to different divs depending on type, but createTooltipFunc
             // consistently receives the base div where our CSS classes need to live.
             var tagClass = null;
@@ -1128,7 +1394,7 @@ function enrichHotspots(scenes) {
                 sizeClass = ' icon-' + hs.iconStyle;
             }
 
-            // Set cssClass for all types now — we use custom CSS with ::after for icons
+            // Set cssClass for all types now - we use custom CSS with ::after for icons
             // instead of relying on Pannellum's default sprites.
             if (tagClass) {
                 hs.cssClass = (hs.cssClass ? hs.cssClass + ' ' : '') + tagClass + sizeClass;
@@ -1158,7 +1424,7 @@ function _doInterceptInfo(panorama) {
 
         // Pannellum wraps hotspots in <a target="_blank"> when they have a URL.
         // Intercept clicks on the <a> parent so that clicks inside the tooltip card
-        // (close button, images, text) don't trigger navigation — but actual links
+        // (close button, images, text) don't trigger navigation - but actual links
         // inside the card (e.g. "Read on Wikipedia") should still work.
         var anchorParent = el.closest('a');
         if (anchorParent) {
@@ -1170,7 +1436,7 @@ function _doInterceptInfo(panorama) {
                     e.preventDefault();
                     return false;
                 }
-            }, true); // capture phase — fires before the <a> default action
+            }, true); // capture phase - fires before the <a> default action
         }
 
         el.onclick = function(e) {
@@ -1267,6 +1533,9 @@ function loadPreviewConfig(config) {
     // Clear the placeholder text from the panorama container
     document.getElementById('panorama').innerHTML = '';
 
+    // Apply tour's viewMode if no URL ?mode= param was provided
+    applyTourViewMode(config);
+
     // Add Wikipedia card tooltips to hotspots
     if (config.scenes) enrichHotspots(config.scenes);
 
@@ -1313,8 +1582,27 @@ function handleLoad(targetScene) {
         return;
     }
 
+    // Update URL to reflect the loaded tour (shareable link)
+    updateURLForTour(tourPage, targetScene);
+
     const configUrl = CONFIG_BACKEND + encodeURIComponent(tourPage);
     loadTour(configUrl, targetScene);
+}
+
+/**
+ * Update the browser URL to reflect the current tour.
+ * Preserves existing ?mode= parameter if present.
+ */
+function updateURLForTour(tourPage, targetScene) {
+    const url = new URL(window.location);
+    url.searchParams.set('page', tourPage);
+    if (targetScene) {
+        url.searchParams.set('scene', targetScene);
+    } else {
+        url.searchParams.delete('scene');
+    }
+    // Preserve ?mode= if present
+    history.pushState({ tourPage, targetScene }, '', url);
 }
 
 function handleKeyPress(e) {
@@ -1335,6 +1623,9 @@ function escapeHTML(str) {
 // ── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Setup immersive mode and fullscreen FIRST (before any early returns)
+    setupImmersiveMode();
+
     document.getElementById('loadBtn').addEventListener('click', handleLoad);
     document.getElementById('tourInput').addEventListener('keypress', handleKeyPress);
 
@@ -1344,8 +1635,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const sceneParam = urlParams.get('scene');
 
     if (pageParam) {
-        // Query string mode — same params as studio
+        // Query string mode - same params as studio
         document.getElementById('tourInput').value = pageParam;
+        // Set Studio button URL
+        document.getElementById('studio-btn').href = '/studio?page=' + encodeURIComponent(pageParam);
         handleLoad(sceneParam);
         return;
     }
@@ -1353,7 +1646,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-load from URL hash
     const hash = window.location.hash.slice(1);
     if (hash) {
-        // localStorage preview (from studio — persistent, cross-tab)
+        // localStorage preview (from studio - persistent, cross-tab)
         if (hash === 'preview=local' || hash === 'preview=session') {
             try {
                 const stored = localStorage.getItem('photosphere-preview-tour') || sessionStorage.getItem('photosphere-preview-tour');
@@ -1426,6 +1719,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Standard wiki page title
         document.getElementById('tourInput').value = hash;
+        // Set Studio button URL
+        document.getElementById('studio-btn').href = '/studio?page=' + encodeURIComponent(hash);
         handleLoad(sceneParam);
     } else {
         // Auto-load the example tour on page load

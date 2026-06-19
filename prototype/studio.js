@@ -17,6 +17,8 @@ const state = {
     /** @type {{pitch: number, yaw: number}|null} */ liveCoords: null,
     defaultAuthor: 'Wikimedia Commons',
     sceneFadeDuration: 1000,
+    /** @type {'immersive'|'detailed'} default view mode for the tour */
+    viewMode: 'immersive',
     /** @type {number|null} index of hotspot being edited, null = adding new */
     editingHotspotIndex: null,
     /** @type {string|null} wiki prefix (commons, en, de, etc.) */
@@ -749,10 +751,17 @@ function importTourData(data) {
     if (data.default) {
         state.defaultAuthor = data.default.author || state.defaultAuthor;
         state.sceneFadeDuration = data.default.sceneFadeDuration || state.sceneFadeDuration;
+        state.viewMode = data.default.viewMode || state.viewMode;
         if (data.default.firstScene && state.scenes[data.default.firstScene]) {
             state.activeSceneId = data.default.firstScene;
             state.startingSceneId = data.default.firstScene;
         }
+    }
+
+    // Update UI to reflect loaded viewMode
+    const viewModeSelect = $('prop-view-mode');
+    if (viewModeSelect) {
+        viewModeSelect.value = state.viewMode;
     }
 
     if (!state.activeSceneId && state.sceneOrder.length > 0) {
@@ -902,6 +911,7 @@ function buildExportJSON(scope) {
             firstScene: firstScene,
             author: state.defaultAuthor,
             sceneFadeDuration: state.sceneFadeDuration,
+            viewMode: state.viewMode || 'immersive',
         },
         scenes: scenes,
     };
@@ -1091,6 +1101,12 @@ function setupPropertyBindings() {
 
     // Set starting scene button
     $('set-starting-scene-btn').addEventListener('click', handleSetStartingScene);
+
+    // Tour view mode selector
+    $('prop-view-mode').addEventListener('change', function() {
+        state.viewMode = this.value;
+        updateStatus('View mode: ' + state.viewMode);
+    });
 }
 
 // ── Modal Helpers ────────────────────────────────────────────────────────────

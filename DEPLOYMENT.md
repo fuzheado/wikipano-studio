@@ -162,12 +162,29 @@ webservice --backend=kubernetes node start
 
 ```bash
 rsync -avz --exclude='node_modules' --exclude='cache' --exclude='images' \
-     prototype/ alih@login.toolforge.org:/data/project/wikipano/www/
+     prototype/ alih@login.toolforge.org:/data/project/wikipano/www/js/
 ```
+
+**Note**: Deploy to `/data/project/wikipano/www/js/` (not `www/` root) — Toolforge expects the app in `www/js/`.
 
 The `tour_server.mjs` file is already the entry point, so no code changes are required.
 
 The `{{PanoTour}}` template you just created will automatically link to the new tool.
+
+### Restart the web service
+
+After deploying, restart the web service to pick up changes:
+
+```bash
+ssh alih@login.toolforge.org "become wikipano; webservice --backend=kubernetes node20 restart"
+```
+
+### Verify deployment
+
+1. Check images are cached: `ls -la /data/project/wikipano/www/js/images/`
+2. Check permissions: `ls -la /data/project/wikipano/www/js/` (images/ and cache/ should be `group: tools.wikipano`)
+3. Test the API: `curl -s "https://wikipano.toolforge.org/api/tour?page=User:Fuzheado/Panellum_Tour"`
+4. Test the viewer: https://wikipano.toolforge.org/tour_viewer.html?page=User:Fuzheado/Panellum_Tour
 
 ---
 
@@ -190,6 +207,26 @@ The `{{PanoTour}}` template you just created will automatically link to the new 
 - The gyroscope toggle button (🧭) appears automatically on mobile devices; it is hidden on desktop.
 - All tour definitions are stored as wiki pages (JSON or TOML) on Commons — no database required.
 - The `wikipano.toolforge.org` tool runs the zero‑dependency Node.js server (`tour_server.mjs`).
+
+### Cache Management
+
+The server includes built-in cache management:
+- **500MB LRU cache** with `.access` tracking files
+- **Pre-fetching**: Linked scene images are pre-fetched in background on tour load
+- **Browser caching**: Images served with `Cache-Control: public, max-age=604800, immutable`
+- **Cache-busting**: Image URLs include `?v=<mtime>` to prevent stale cache
+
+### Troubleshooting
+
+**Chrome shows error but Incognito works**:
+1. Hard refresh: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows/Linux)
+2. If that doesn't work, fully quit Chrome (`Cmd+Q`) and restart
+3. See CAVEATS.md §17 for details
+
+**Images not loading**:
+1. Check if images exist: `ls -la /data/project/wikipano/www/js/images/`
+2. Check permissions: `ls -la /data/project/wikipano/www/js/images/` (should be `group: tools.wikipano`)
+3. Check server logs: `webservice --backend=kubernetes node20 logs`
 
 ---
 

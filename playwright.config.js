@@ -5,6 +5,12 @@ module.exports = defineConfig({
     testDir: './tests',
     timeout: 30000,
     retries: 0,
+    webServer: {
+        command: 'node prototype/tour_server.mjs',
+        url: 'http://localhost:8765',
+        reuseExistingServer: true,
+        timeout: 10000,
+    },
     use: {
         baseURL: 'http://localhost:8765',
         headless: true,
