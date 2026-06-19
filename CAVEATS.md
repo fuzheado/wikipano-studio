@@ -443,3 +443,34 @@ When adding a new interactive element inside a Pannellum hotspot card, verify al
 3. **Element's own handler** — does it use both `preventDefault()` and `stopPropagation()`?
 
 Test all three scenarios: open card, interact with new element, close card.
+
+---
+
+## 16. Thumbnail Fix: Resolve Images Before Rendering
+
+**Problem**: When adding a new scene, the thumbnail in the left sidebar was blank because the panorama URL was still a `File:` reference (not resolved to `/images/` path) when `renderSceneList()` was called.
+
+**Root cause**: `addScene()` set `panorama: "File:MyPhoto.jpg"` but didn't resolve it to a cached `/images/` path before calling `renderSceneList()`. The `getSceneThumbnail()` function only works with `/images/` paths.
+
+**Fix**: Make `addScene()` async and call `resolveSceneImage()` before rendering:
+
+```javascript
+async function addScene(imageUrl, title) {
+    // ... create scene ...
+    
+    // Resolve the image URL to get cached /images/ path for thumbnails
+    try {
+        const resolvedUrl = await resolveSceneImage(scene);
+        scene.panorama = resolvedUrl;
+    } catch(e) {
+        console.warn('Failed to resolve image for thumbnail:', e);
+    }
+
+    renderSceneList();  // Now panorama is /images/abc123.jpg
+    // ...
+}
+```
+
+**Lesson**: When creating objects that will be rendered immediately, ensure all URLs are resolved to their final form before rendering. Don't assume the rendering function can handle intermediate states.
+
+**Related**: This is similar to the export/preview path issue (CAVEATS.md §11) where `_original` fields must be set before export.

@@ -99,6 +99,8 @@ photospheres/
 
 - Tour API fetches wiki page, auto-detects format, parses, resolves files
 - **Multi-wiki support**: `prefix:Page` format (e.g., `en:Wikipedia_tour`), default `commons:`
+- **Starting scene**: ⭐ button sets designated first scene, shown in scene list
+- **Thumbnails**: `addScene()` resolves `File:` references before rendering
 - Image caching downloads Commons images, serves from local `/images/` directory
 - Pannellum renders tours with clickable scene hotspots and info hotspots
 - Sidebar shows scene list, author info, link to source wiki page
@@ -152,6 +154,8 @@ photospheres/
 - [x] DEPLOYMENT.md — step-by-step Toolforge deployment guide
 - [x] **Tour Viewer `?page=` + `?scene=` URL parameters** — same params as Studio; hash-based routing preserved
 - [x] **Tour Viewer test suite** (`tests/tour-viewer.spec.js`) — 15 tests covering URL params, scene nav, sidebar, status, viewer state
+- [x] **Set as starting scene** — ⭐ button in properties panel, visual indicator in scene list, export/preview use designated starting scene
+- [x] **Thumbnail fix** — `addScene()` now async, resolves `File:` references to `/images/` paths before rendering thumbnails
 
 ### Phase 2.5: New Toolforge Tool Deployment ✅ (2026-06-18)
 **Goal**: Deploy prototype as a brand new Toolforge tool named **`wikipano`**. Toolforge's native Node.js backend runs `tour_server.mjs` directly — no PHP porting needed.

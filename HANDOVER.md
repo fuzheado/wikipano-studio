@@ -1,7 +1,7 @@
 # Handover Document - Wikimedia Photosphere Tours
 
 **Date**: 2026-06-19 (updated)
-**Session**: Tour viewer URL params, test suite expansion
+**Session**: Multi-wiki support, starting scene, thumbnail fix
 
 ---
 
@@ -22,6 +22,7 @@
 | Integrity checks at all boundaries | ✅ |
 | Scene thumbnails (Studio + Viewer) | ✅ |
 | Set default view for scene | ✅ |
+| **Set as starting scene** | ✅ |
 | Hotspot repositioning (Set to Current View) | ✅ |
 | Icon consistency (Studio = Viewer) | ✅ |
 | Icon size variants (`iconStyle`) | ✅ |
@@ -36,6 +37,8 @@
 - **Class tagging**: `cssClass` set for ALL hotspot types (scene/info/audio/video/wp-card-hotspot)
 - **5-step rule**: Every new field must touch storage, import, export, preview, validation.
 - **Multi-wiki support**: Page parameter accepts `prefix:Page` format (e.g., `en:Wikipedia_tour`). Default: `commons:`. Supported: commons, en, de, fr, es, it, ja, zh, ru, pt, wikidata.
+- **Starting scene**: `state.startingSceneId` tracks the tour's first scene. Set via ⭐ button in properties panel. Export/preview use this instead of active scene.
+- **Thumbnail fix**: `addScene()` is async and resolves `File:` references to `/images/` paths before rendering thumbnails.
 
 ### Pannellum 2.5.7 Gotchas
 1. All hotspots use `cssClass` + custom CSS with `::after` for icons (no longer rely on Pannellum sprites)

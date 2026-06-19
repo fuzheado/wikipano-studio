@@ -695,10 +695,10 @@ Some features depend on others:
 
 ### Implementation Order
 
-| Phase | Feature | Effort | Dependencies |
-|-------|---------|--------|--------------|
-| 1 | FR-01 Multi-Wiki Loading | Medium | None |
-| 2 | FR-02 Audio/Video Restriction | Medium | FR-01 |
-| 3 | FR-05 Export Validation | Medium | FR-02, FR-03 |
-| 4 | FR-03 Panorama Validation | Low | FR-01 |
-| 5 | FR-04 External Link Warning | Low | None |
+| Phase | Feature | Effort | Dependencies | Status |
+|-------|---------|--------|--------------|--------|
+| 1 | FR-01 Multi-Wiki Loading | Medium | None | ✅ Done |
+| 2 | FR-02 Audio/Video Restriction | Medium | FR-01 | ⬜ Not started |
+| 3 | FR-05 Export Validation | Medium | FR-02, FR-03 | ⬜ Not started |
+| 4 | FR-03 Panorama Validation | Low | FR-01 | ⬜ Not started |
+| 5 | FR-04 External Link Warning | Low | None | ⬜ Not started |

@@ -55,6 +55,7 @@ A full authoring pipeline for collaborative photosphere tours:
 - Red ➤ / blue ⓘ hotspot icons in the viewport
 - Audio 🎵 + Video 🎬 hotspot support (Commons + YouTube)
 - Hotspot icon size variants (`iconStyle`: normal, small, large, huge)
+- **Set as starting scene** — ⭐ button to designate tour's first scene
 - Integrity checks at all data boundaries
 - JSON validator: `node scripts/validate-pannellum.mjs <file.json> [--fix]`
 
@@ -175,7 +176,7 @@ panorama = "File:My_Photo.jpg"
 | 1 — Viewer | ✅ Done | Wiki-backed tour viewer with Wikipedia info cards |
 | 2 — Studio | ✅ Done | Visual editor with click-to-place hotspots |
 | 2.5 — Deploy | ✅ **Done** | Deployed at **wikipano.toolforge.org**, `{{PanoTour}}` template on Commons |
-| 2.6 — Scope | ⬜ Planned | Multi-wiki support + Wikimedia content restrictions — see `FEATURE_REQUESTS.md` |
+| 2.6 — Scope | 🔶 In Progress | Multi-wiki support (FR-01 done) + Wikimedia content restrictions — see `FEATURE_REQUESTS.md` |
 | 3 — Rich Features | Future | Photo-Sphere-Viewer migration, GPS, maps, gallery, OAuth save |
 
 ## License
