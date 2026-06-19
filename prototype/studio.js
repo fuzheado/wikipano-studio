@@ -79,7 +79,7 @@ function normalizeImageSource(input) {
 
 // ── Scene Management ─────────────────────────────────────────────────────────
 
-function addScene(imageUrl, title) {
+async function addScene(imageUrl, title) {
     const id = 'scene_' + Date.now();
     const scene = {
         title: title || ('Scene ' + (state.sceneOrder.length + 1)),
@@ -96,6 +96,14 @@ function addScene(imageUrl, title) {
     // If first scene, auto-select
     if (!state.activeSceneId) {
         state.activeSceneId = id;
+    }
+
+    // Resolve the image URL to get cached /images/ path for thumbnails
+    try {
+        const resolvedUrl = await resolveSceneImage(scene);
+        scene.panorama = resolvedUrl;
+    } catch(e) {
+        console.warn('Failed to resolve image for thumbnail:', e);
     }
 
     renderSceneList();
@@ -1131,12 +1139,12 @@ function init() {
 
     // Add scene
     $('add-scene-btn').addEventListener('click', () => modalShow('modal-add-scene'));
-    $('modal-confirm-add').addEventListener('click', () => {
+    $('modal-confirm-add').addEventListener('click', async () => {
         const raw = $('modal-img-url').value;
         const title = $('modal-title').value.trim();
         const normalized = normalizeImageSource(raw);
         if (!normalized) { updateStatus('Please enter an image URL or Commons filename', true); return; }
-        addScene(normalized, title);
+        await addScene(normalized, title);
         modalHide('modal-add-scene');
         $('modal-img-url').value = '';
         $('modal-title').value = '';
