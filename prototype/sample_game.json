@@ -1,0 +1,62 @@
+{
+  "game": {
+    "title": "Banned Books Museum Challenge",
+    "description": "Explore the Banned Books Museum and find the book that shook the world!",
+    "author": "Andrew Lih",
+    "prompt": "Click on the book that caused a fatwa to be issued against the author.",
+    "maxGuesses": 3,
+    "freeUnzonedClicks": false,
+    "showDecoyMessages": true,
+    "hint": "Look for a book by an author who was forced into hiding.",
+    "hintAfterGuesses": 1,
+    "sceneId": "Museum",
+    "initialView": { "pitch": -12, "yaw": 120, "hfov": 100 },
+    "answer": {
+      "pitch": -15,
+      "yaw": 87,
+      "radius": 10,
+      "label": "The Satanic Verses",
+      "successTitle": "🎉 Correct!",
+      "successMessage": "This is The Satanic Verses by Salman Rushdie, published in 1988. Iran's Ayatollah Khomeini issued a fatwa calling for Rushdie's death in 1989, forcing the author into hiding under police protection for nearly a decade. The novel sparked worldwide debates about free speech, blasphemy, and the limits of artistic expression.",
+      "successLink": "https://en.wikipedia.org/wiki/The_Satanic_Verses"
+    },
+    "decoys": [
+      {
+        "pitch": -12,
+        "yaw": 180,
+        "radius": 10,
+        "label": "Other exhibit",
+        "message": "That exhibit is interesting, but it didn't spark an international incident. Keep looking for something more controversial."
+      },
+      {
+        "pitch": -8,
+        "yaw": 40,
+        "radius": 10,
+        "label": "Nearby shelf",
+        "message": "Close, but that's not the one. The book we're looking for was banned in multiple countries and its author lived under a death threat."
+      },
+      {
+        "pitch": -20,
+        "yaw": -30,
+        "radius": 12,
+        "label": "Far wall",
+        "message": "That area has some banned books, but none quite as infamous as the one that caused a fatwa."
+      }
+    ]
+  },
+  "default": {
+    "firstScene": "Museum",
+    "author": "Andrew Lih",
+    "sceneFadeDuration": 1000
+  },
+  "scenes": {
+    "Museum": {
+      "title": "Banned Books Museum",
+      "hfov": 120,
+      "pitch": -12.54,
+      "yaw": 141.40,
+      "type": "equirectangular",
+      "panorama": "File:Wikimedia_Hackathon_2024_-_Banned_Books_Museum_06.jpg"
+    }
+  }
+}

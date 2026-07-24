@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WikiSphere Detective — Photosphere Guessing Game</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.7/build/pannellum.js"></script>
+    <script src="i18n.js"></script>
+    <script src="game_engine.js"></script>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --text: #e0e0e0;
+            --accent: #162447;
+            --highlight: #e94560;
+            --gold: #f0ad4e;
+            --green: #5cb85c;
+            --muted: #888;
+            --radius: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Panorama container (fills everything) ─────────────────── */
+        #panorama {
+            position: absolute;
+            inset: 0;
+            background: #000;
+        }
+
+        /* ── Prompt banner (top, semi-transparent) ─────────────────── */
+        #prompt-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 70%, transparent 100%);
+            padding: 20px 24px 30px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        #prompt-banner.visible {
+            display: flex;
+        }
+        #prompt-text {
+            font-size: 1.3rem;
+            font-weight: 600;
+            text-align: center;
+            max-width: 600px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            line-height: 1.4;
+            pointer-events: none;
+        }
+        #hint-btn {
+            margin-top: 10px;
+            padding: 6px 18px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.85rem;
+            pointer-events: auto;
+            transition: background 0.2s, border-color 0.2s;
+            display: none;
+        }
+        #hint-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: var(--gold);
+        }
+
+        /* ── Click markers layer (over panorama) ──────────────────── */
+        #click-markers {
+            position: absolute;
+            inset: 0;
+            z-index: 15;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        /* Individual marker */
+        .click-marker {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            margin-left: -18px;
+            margin-top: -18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+        .click-marker.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .click-marker.marker-incorrect {
+            background: var(--highlight);
+            color: #fff;
+            box-shadow: 0 0 16px rgba(233,69,96,0.6);
+        }
+        .click-marker.marker-correct {
+            background: var(--green);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(92,184,92,0.7);
+            width: 44px;
+            height: 44px;
+            margin-left: -22px;
+            margin-top: -22px;
+            font-size: 22px;
+        }
+        .click-marker.marker-free {
+            background: rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.5);
+            box-shadow: none;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+            font-size: 14px;
+        }
+
+        /* Tooltip near click */
+        .click-tooltip {
+            position: absolute;
+            max-width: 220px;
+            padding: 6px 12px;
+            background: rgba(0,0,0,0.85);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            font-size: 0.78rem;
+            color: #ccc;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            line-height: 1.4;
+        }
+        .click-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ── Mobile crosshair ─────────────────────────────────────── */
+        #mobile-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 18;
+            display: none;
+            pointer-events: none;
+        }
+        #mobile-crosshair .crosshair-outer {
+            width: 64px;
+            height: 64px;
+            border: 2px solid rgba(255,255,255,0.6);
+            border-radius: 50%;
+            position: relative;
+        }
+        #mobile-crosshair .crosshair-inner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            margin-left: -2px;
+            margin-top: -2px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(255,255,255,0.8);
+        }
+        #mobile-crosshair .crosshair-h,
+        #mobile-crosshair .crosshair-v {
+            position: absolute;
+            background: rgba(255,255,255,0.3);
+        }
+        #mobile-crosshair .crosshair-h {
+            top: 50%;
+            left: 8px;
+            right: 8px;
+            height: 1px;
+            margin-top: -0.5px;
+        }
+        #mobile-crosshair .crosshair-v {
+            left: 50%;
+            top: 8px;
+            bottom: 8px;
+            width: 1px;
+            margin-left: -0.5px;
+        }
+
+        /* ── Mobile hint text ─────────────────────────────────────── */
+        #mobile-hint-text {
+            position: absolute;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 18;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.7);
+            text-align: center;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+            display: none;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* ── Guess button (mobile) ────────────────────────────────── */
+        #guess-btn {
+            position: absolute;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            display: none;
+            padding: 14px 36px;
+            background: var(--highlight);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 30px;
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(233,69,96,0.4);
+            transition: background 0.2s, transform 0.15s;
+            letter-spacing: 0.02em;
+        }
+        #guess-btn:hover {
+            background: #ff5a75;
+        }
+        #guess-btn:active {
+            transform: translateX(-50%) scale(0.96);
+        }
+
+        /* ── Guess dots (bottom bar) ──────────────────────────────── */
+        #guess-dots {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            z-index: 20;
+            display: flex;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .guess-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.5);
+            transition: background 0.3s, border-color 0.3s, transform 0.3s;
+        }
+        .guess-dot.used {
+            background: var(--highlight);
+            border-color: var(--highlight);
+            transform: scale(0.8);
+        }
+
+        /* ── Score card overlay ───────────────────────────────────── */
+        #score-card {
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #score-card.visible {
+            display: flex;
+        }
+        .score-card-inner {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+            animation: scoreSlideUp 0.4s ease-out;
+        }
+        @keyframes scoreSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #score-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        #score-stars {
+            font-size: 2rem;
+            color: var(--gold);
+            margin: 8px 0 4px;
+            letter-spacing: 4px;
+        }
+        #score-subtitle {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+        #score-msg {
+            font-size: 1rem;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+        #score-answer {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 16px;
+            display: none;
+        }
+        #score-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #5bc0de;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        #score-link:hover {
+            text-decoration: underline;
+        }
+        #play-again-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: var(--highlight);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #play-again-btn:hover {
+            background: #ff5a75;
+        }
+        #find-more-link {
+            display: block;
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-decoration: none;
+        }
+
+        /* ── Loading overlay ──────────────────────────────────────── */
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 200;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+        }
+        #loading-overlay.hidden {
+            display: none;
+        }
+        #loading-overlay .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.15);
+            border-top-color: var(--highlight);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading-msg {
+            font-size: 1rem;
+            color: var(--muted);
+        }
+
+        /* ── Error overlay ────────────────────────────────────────── */
+        #error-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 200;
+            background: var(--bg);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            padding: 32px;
+            text-align: center;
+        }
+        #error-overlay.visible {
+            display: flex;
+        }
+        #error-overlay .icon {
+            font-size: 3rem;
+        }
+        #error-msg {
+            font-size: 1.1rem;
+            color: #fca5a5;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        #error-detail {
+            font-size: 0.85rem;
+            color: var(--muted);
+            max-width: 400px;
+        }
+
+        /* ── Title badge (top-right corner) ───────────────────────── */
+        #title-badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 22;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        /* ── Footer attribution ───────────────────────────────────── */
+        #attribution {
+            position: absolute;
+            bottom: 8px;
+            left: 12px;
+            z-index: 22;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.3);
+            pointer-events: none;
+        }
+        #attribution a {
+            color: rgba(255,255,255,0.4);
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Panorama ──────────────────────────────────────────────────────────── -->
+<div id="panorama"></div>
+
+<!-- ── Loading overlay ───────────────────────────────────────────────────── -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-msg">Loading game…</div>
+</div>
+
+<!-- ── Error overlay ─────────────────────────────────────────────────────── -->
+<div id="error-overlay">
+    <div class="icon">⚠️</div>
+    <div id="error-msg"></div>
+    <div id="error-detail"></div>
+</div>
+
+<!-- ── Prompt banner ─────────────────────────────────────────────────────── -->
+<div id="prompt-banner">
+    <div id="prompt-text"></div>
+    <button id="hint-btn">💡 Hint</button>
+</div>
+
+<!-- ── Click markers layer ───────────────────────────────────────────────── -->
+<div id="click-markers"></div>
+
+<!-- ── Mobile crosshair ──────────────────────────────────────────────────── -->
+<div id="mobile-crosshair">
+    <div class="crosshair-outer">
+        <div class="crosshair-inner"></div>
+        <div class="crosshair-h"></div>
+        <div class="crosshair-v"></div>
+    </div>
+</div>
+<div id="mobile-hint-text"></div>
+
+<!-- ── Guess button (mobile only) ─────────────────────────────────────────── -->
+<button id="guess-btn">🔍 Guess Here!</button>
+
+<!-- ── Guess dots ────────────────────────────────────────────────────────── -->
+<div id="guess-dots"></div>
+
+<!-- ── Title badge ───────────────────────────────────────────────────────── -->
+<div id="title-badge"></div>
+
+<!-- ── Attribution ──────────────────────────────────────────────────────── -->
+<div id="attribution">
+    Photos from <a href="https://commons.wikimedia.org/" target="_blank">Wikimedia Commons</a>
+    · Powered by <a href="https://pannellum.org/" target="_blank">Pannellum</a>
+</div>
+
+<!-- ── Score card overlay ────────────────────────────────────────────────── -->
+<div id="score-card">
+    <div class="score-card-inner">
+        <div id="score-title"></div>
+        <div id="score-stars"></div>
+        <div id="score-subtitle"></div>
+        <div id="score-msg"></div>
+        <div id="score-answer"></div>
+        <a id="score-link" href="#" target="_blank">Learn more on Wikipedia →</a>
+        <button id="play-again-btn">🔄 Play Again</button>
+        <a id="find-more-link" href="#">Find More Games</a>
+    </div>
+</div>
+
+<!-- ── Main script ───────────────────────────────────────────────────────── -->
+<script>
+(function() {
+'use strict';
+
+// ── DOM references ────────────────────────────────────────────────────────
+const dom = {
+    panorama:         document.getElementById('panorama'),
+    loadingOverlay:   document.getElementById('loading-overlay'),
+    loadingMsg:       document.getElementById('loading-msg'),
+    errorOverlay:     document.getElementById('error-overlay'),
+    errorMsg:         document.getElementById('error-msg'),
+    errorDetail:      document.getElementById('error-detail'),
+    promptBanner:     document.getElementById('prompt-banner'),
+    promptText:       document.getElementById('prompt-text'),
+    hintBtn:          document.getElementById('hint-btn'),
+    clickMarkers:     document.getElementById('click-markers'),
+    mobileCrosshair:  document.getElementById('mobile-crosshair'),
+    mobileHintText:   document.getElementById('mobile-hint-text'),
+    guessBtn:         document.getElementById('guess-btn'),
+    guessDots:        document.getElementById('guess-dots'),
+    titleBadge:       document.getElementById('title-badge'),
+    scoreCard:        document.getElementById('score-card'),
+    scoreTitle:       document.getElementById('score-title'),
+    scoreStars:       document.getElementById('score-stars'),
+    scoreSubtitle:    document.getElementById('score-subtitle'),
+    scoreMsg:         document.getElementById('score-msg'),
+    scoreAnswer:      document.getElementById('score-answer'),
+    scoreLink:        document.getElementById('score-link'),
+    playAgainBtn:     document.getElementById('play-again-btn'),
+    findMoreLink:     document.getElementById('find-more-link'),
+};
+
+// ── Config ────────────────────────────────────────────────────────────────
+const BACKEND = '/api/tour?page='; // wiki pages
+const LOCAL_GAME_API = '/api/game?file='; // local files for testing
+
+// ── Parse URL params ──────────────────────────────────────────────────────
+const urlParams = new URLSearchParams(window.location.search);
+const pageParam = urlParams.get('page') || window.location.hash.replace('#', '');
+const fileParam = urlParams.get('file'); // local file override for testing
+
+let pageId, fetchUrl;
+if (fileParam) {
+    pageId = fileParam;
+    fetchUrl = LOCAL_GAME_API + encodeURIComponent(fileParam);
+} else if (pageParam) {
+    pageId = pageParam;
+    fetchUrl = BACKEND + encodeURIComponent(pageParam);
+} else {
+    showError(LANG.errorNoPage);
+    throw new Error('No page or file parameter');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function showError(msg, detail) {
+    dom.loadingOverlay.classList.add('hidden');
+    dom.errorOverlay.classList.add('visible');
+    dom.errorMsg.textContent = msg || LANG.errorLoad;
+    dom.errorDetail.textContent = detail || '';
+}
+
+function showLoading(msg) {
+    dom.loadingMsg.textContent = msg || LANG.loadingGame;
+    dom.loadingOverlay.classList.remove('hidden');
+    dom.errorOverlay.classList.remove('visible');
+}
+
+// ── Initialize ────────────────────────────────────────────────────────────
+
+let viewer = null;
+let game = null;
+// Expose for debugging
+window.__game = () => game;
+window.__viewer = () => viewer;
+
+async function init() {
+    showLoading(LANG.loadingGame);
+
+    // 1. Fetch game data from backend
+    let gameData;
+    try {
+        const resp = await fetch(fetchUrl);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'HTTP ' + resp.status);
+        }
+        gameData = await resp.json();
+    } catch (err) {
+        showError(LANG.errorLoad, err.message);
+        return;
+    }
+
+    // 2. Validate
+    if (!gameData || !gameData.game) {
+        showError(LANG.errorNoGame);
+        return;
+    }
+    if (!gameData.game.prompt) {
+        showError(LANG.errorNoPrompt);
+        return;
+    }
+    if (!gameData.game.answer) {
+        showError(LANG.errorNoAnswer);
+        return;
+    }
+
+    // 3. Show title badge
+    if (gameData.game.title) {
+        dom.titleBadge.textContent = '🕵️ ' + gameData.game.title;
+    }
+
+    // 4. Build Pannellum config from the tour data
+    const panoConfig = buildPannellumConfig(gameData);
+
+    // 5. Initialize Pannellum
+    showLoading(LANG.loading);
+
+    try {
+        viewer = pannellum.viewer('panorama', panoConfig);
+    } catch (err) {
+        showError(LANG.errorViewer, err.message);
+        return;
+    }
+
+    // Wait for panorama to load
+    viewer.on('load', () => {
+        dom.loadingOverlay.classList.add('hidden');
+
+        // 6. Start the game
+        game = new GameEngine(viewer, gameData, dom, pageId);
+        game.start();
+    });
+
+    viewer.on('error', (err) => {
+        showError(LANG.errorViewer, err);
+    });
+}
+
+/**
+ * Build a Pannellum-compatible config from game JSON.
+ * The game JSON contains scenes + panorama fields in standard Pannellum format,
+ * plus the `game` namespace we strip out.
+ */
+function buildPannellumConfig(gameData) {
+    const config = {};
+
+    // Copy default
+    if (gameData.default) {
+        Object.assign(config, gameData.default);
+    }
+
+    // Ensure autoLoad
+    if (!config.autoLoad) config.autoLoad = true;
+
+    // Copy scenes
+    if (gameData.scenes) {
+        config.scenes = {};
+        for (const [id, scene] of Object.entries(gameData.scenes)) {
+            config.scenes[id] = { ...scene };
+        }
+    }
+
+    // If no firstScene in default, use the game's sceneId
+    if (!config.firstScene && gameData.game.sceneId) {
+        config.firstScene = gameData.game.sceneId;
+    }
+
+    // Apply initial view
+    const iv = gameData.game.initialView;
+    if (iv) {
+        if (iv.pitch !== undefined) config.pitch = iv.pitch;
+        if (iv.yaw !== undefined) config.yaw = iv.yaw;
+        if (iv.hfov !== undefined) config.hfov = iv.hfov;
+    }
+
+    // Remove any hotspots from scenes — we don't want normal Pannellum
+    // hotspots visible during gameplay (the game uses its own click system).
+    if (config.scenes) {
+        for (const scene of Object.values(config.scenes)) {
+            delete scene.hotSpots;
+        }
+    }
+
+    return config;
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.key) {
+        case '?':
+            // Reveal hint
+            if (game && game.hintBtn) game.hintBtn.click();
+            e.preventDefault();
+            break;
+        case 'r':
+        case 'R':
+            // Reset/play again
+            if (game && game.state !== 'prompting') {
+                game._reset();
+            }
+            e.preventDefault();
+            break;
+        case 'Enter':
+            // Mobile guess
+            if (game && game._mobileMode && game.state === 'prompting') {
+                game._handleMobileGuess();
+            }
+            e.preventDefault();
+            break;
+    }
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────
+init();
+
+})();
+</script>
+
+</body>
+</html>
