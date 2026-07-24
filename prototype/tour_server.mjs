@@ -126,11 +126,11 @@ function jsonResponse(res, status, data) {
 
 async function serveStatic(res, pathname) {
     // Route clean URLs to HTML files
-    const routeMap = {
-        '/': 'tour_viewer.html',
-        '/studio': 'studio.html',
-        '/game': 'game_viewer.html',
-    };
+    // Route map: TOOL_MODE=quiz serves the game; otherwise serves tours.
+    // Set TOOL_MODE=quiz for wikipano-quiz; leave unset for main wikipano.
+    const routeMap = process.env.TOOL_MODE === 'quiz'
+        ? { '/': 'game_viewer.html', '/game': 'game_viewer.html' }
+        : { '/': 'tour_viewer.html', '/studio': 'studio.html', '/game': 'game_viewer.html' };
     const filePath = join(__dirname, routeMap[pathname] || pathname);
     if (!filePath.startsWith(__dirname)) {
         res.writeHead(403); res.end('Forbidden'); return;

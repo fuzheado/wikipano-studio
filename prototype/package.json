@@ -1,0 +1,11 @@
+{
+  "name": "wikipano-quiz",
+  "version": "0.1.0",
+  "description": "WikiSphere Detective — photosphere guessing game on Wikimedia Commons",
+  "main": "tour_server.mjs",
+  "scripts": {
+    "start": "TOOL_MODE=quiz node tour_server.mjs"
+  },
+  "license": "MIT",
+  "type": "module"
+}

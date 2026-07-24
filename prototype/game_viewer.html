@@ -582,8 +582,9 @@ if (fileParam) {
     pageId = pageParam;
     fetchUrl = BACKEND + encodeURIComponent(pageParam);
 } else {
-    showError(LANG.errorNoPage);
-    throw new Error('No page or file parameter');
+    // Default: load sample game
+    pageId = 'sample_game.json';
+    fetchUrl = LOCAL_GAME_API + 'sample_game.json';
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
