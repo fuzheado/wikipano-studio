@@ -310,11 +310,34 @@ async function resolveCommonsFile(filename, wikiConfig = WIKI_PREFIXES.commons, 
     });
 }
 
+// ── Outbound fetch allowlist ────────────────────────────────────────────────
+// cacheImage() fetches a CALLER-SUPPLIED URL (e.g. /api/resolve-url?url=...).
+// Node decompresses Brotli responses transparently, so a host chosen by an
+// attacker could hand this process a malformed Brotli stream (CVE-2026-111497,
+// "Node2Shell"). Wikimedia hosts serve uploads verbatim and never re-encode them
+// as Brotli, so restricting outbound image fetches to them removes that path.
+const ALLOWED_IMAGE_HOSTS = /(^|\.)(wikimedia\.org|wikipedia\.org|wiktionary\.org|wikisource\.org|wikibooks\.org|wikinews\.org|wikiquote\.org|wikiversity\.org|wikivoyage\.org|wikidata\.org)$/i;
+
+function isAllowedImageUrl(candidate) {
+    let parsed;
+    try {
+        parsed = new URL(candidate);
+    } catch {
+        return false;
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    return ALLOWED_IMAGE_HOSTS.test(parsed.hostname);
+}
+
 /**
  * Download an image and cache it locally in /images/.
  * Returns a simple path like /images/abc123.jpg.
  */
 async function cacheImage(sourceUrl, originalUrl = null) {
+    // Refuse anything that is not a Wikimedia URL, before any network activity.
+    if (!isAllowedImageUrl(sourceUrl)) {
+        throw new Error(`Refusing to fetch non-Wikimedia URL: ${sourceUrl}`);
+    }
     const hash = createHash('sha256').update(sourceUrl).digest('hex').substring(0, 16);
     const extMatch = sourceUrl.match(/\.(jpg|jpeg|png|webp)(\?|$)/i);
     const ext = extMatch ? extMatch[1] : 'jpg';
@@ -349,6 +372,11 @@ async function cacheImage(sourceUrl, originalUrl = null) {
         signal: AbortSignal.timeout(30000),
     });
     if (!resp.ok) throw new Error(`Failed to download image: HTTP ${resp.status}`);
+    // A redirect could land off-allowlist; check the FINAL URL before reading the
+    // body (reading is what triggers decompression).
+    if (!isAllowedImageUrl(resp.url)) {
+        throw new Error(`Refusing to read response redirected to non-Wikimedia URL: ${resp.url}`);
+    }
     await writeFile(filepath, Buffer.from(await resp.arrayBuffer()));
     // Create access time file for LRU
     await writeFile(filepath + '.access', Date.now().toString());
